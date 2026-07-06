@@ -1,0 +1,43 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.37411.7
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GawishERP.Domain", "src\GawishERP.Domain\GawishERP.Domain.csproj", "{E96036DC-7972-420F-9BF7-6AD03953D7EB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GawishERP.Application", "src\GawishERP.Application\GawishERP.Application.csproj", "{7CC1EC86-C71C-4555-8F5A-6EED9EEB3A36}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GawishERP.Infrastructure", "src\GawishERP.Infrastructure\GawishERP.Infrastructure.csproj", "{8D88BAD5-D6D6-4BF3-A0F9-6474ADF90787}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GawishERP.API", "src\GawishERP.API\GawishERP.API.csproj", "{A9E101F9-EBA2-497A-BA50-6810D66E5C76}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E96036DC-7972-420F-9BF7-6AD03953D7EB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E96036DC-7972-420F-9BF7-6AD03953D7EB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E96036DC-7972-420F-9BF7-6AD03953D7EB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E96036DC-7972-420F-9BF7-6AD03953D7EB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7CC1EC86-C71C-4555-8F5A-6EED9EEB3A36}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7CC1EC86-C71C-4555-8F5A-6EED9EEB3A36}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7CC1EC86-C71C-4555-8F5A-6EED9EEB3A36}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7CC1EC86-C71C-4555-8F5A-6EED9EEB3A36}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8D88BAD5-D6D6-4BF3-A0F9-6474ADF90787}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8D88BAD5-D6D6-4BF3-A0F9-6474ADF90787}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8D88BAD5-D6D6-4BF3-A0F9-6474ADF90787}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8D88BAD5-D6D6-4BF3-A0F9-6474ADF90787}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A9E101F9-EBA2-497A-BA50-6810D66E5C76}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A9E101F9-EBA2-497A-BA50-6810D66E5C76}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A9E101F9-EBA2-497A-BA50-6810D66E5C76}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A9E101F9-EBA2-497A-BA50-6810D66E5C76}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {E0C27ED1-CDE2-4681-8611-2E2F09FBCD78}
+	EndGlobalSection
+EndGlobal
