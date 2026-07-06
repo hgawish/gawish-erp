@@ -15,4 +15,10 @@
     <ProjectReference Include="..\GawishERP.Infrastructure\GawishERP.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Middleware\" />
+    <Folder Include="Extensions\" />
+    <Folder Include="Configurations\" />
+  </ItemGroup>
+
 </Project>

@@ -12,7 +12,15 @@
 
   <ItemGroup>
     <Folder Include="Common\" />
-    <Folder Include="NewFolder\" />
+    <Folder Include="Features\Identity\" />
+    <Folder Include="Features\Companies\" />
+    <Folder Include="Features\Branches\" />
+    <Folder Include="Features\Permissions\" />
+    <Folder Include="Features\Roles\" />
+    <Folder Include="Features\Users\" />
+    <Folder Include="Interfaces\" />
+    <Folder Include="DTOs\" />
+    <Folder Include="Services\" />
   </ItemGroup>
 
 </Project>

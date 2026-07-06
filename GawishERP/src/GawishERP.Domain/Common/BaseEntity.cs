@@ -1,12 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿
+namespace GawishERP.Domain.Common;
 
-namespace GawishERP.Domain.Common
+public abstract class BaseEntity
 {
-    internal class BaseEntity
-    {
-    }
+    public Guid Id { get; protected set; } = Guid.NewGuid();
 }
+
