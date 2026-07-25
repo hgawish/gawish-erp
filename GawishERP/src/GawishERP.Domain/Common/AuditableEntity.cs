@@ -10,22 +10,14 @@ public abstract class AuditableEntity : BaseEntity
 
     public Guid? UpdatedBy { get; private set; }
 
-    public bool IsDeleted { get; private set; }
-
-    public DateTime? DeletedAt { get; private set; }
-
-    public Guid? DeletedBy { get; private set; }
+    protected void SetCreatedBy(Guid? userId)
+    {
+        CreatedBy = userId;
+    }
 
     public void MarkUpdated(Guid? userId)
     {
         UpdatedAt = DateTime.UtcNow;
         UpdatedBy = userId;
-    }
-
-    public void SoftDelete(Guid? userId)
-    {
-        IsDeleted = true;
-        DeletedAt = DateTime.UtcNow;
-        DeletedBy = userId;
     }
 }
