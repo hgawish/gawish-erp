@@ -22,7 +22,21 @@ public sealed class FinancialStatementNode : BaseEntity
 
     public bool IsEditable { get; private set; }
 
+    public string? Formula { get; private set; }
+
+    public bool IsHeader { get; private set; }
+
+    public bool IsTotal { get; private set; }
+
+    public bool AllowPosting { get; private set; }
+
+    public bool IsVisible { get; private set; }
+
+    public int Level { get; private set; }
+
+    // ==========================
     // Navigation
+    // ==========================
 
     public FinancialStatementNode? Parent { get; private set; }
 
@@ -50,20 +64,21 @@ public sealed class FinancialStatementNode : BaseEntity
             throw new ArgumentException(nameof(name));
 
         Code = code;
-
         Name = name;
-
         StatementType = statementType;
-
         NormalBalance = normalBalance;
-
         SortOrder = sortOrder;
-
         IsSystem = isSystem;
-
         IsEditable = isEditable;
-
         ParentId = parentId;
+
+        // Default Values
+        IsVisible = true;
+        AllowPosting = false;
+        IsHeader = false;
+        IsTotal = false;
+        Formula = null;
+        Level = 0;
     }
 
     public void Update(
@@ -74,7 +89,6 @@ public sealed class FinancialStatementNode : BaseEntity
             throw new ArgumentException(nameof(name));
 
         Name = name;
-
         SortOrder = sortOrder;
     }
 
@@ -86,5 +100,40 @@ public sealed class FinancialStatementNode : BaseEntity
     public void SetEditable(bool editable)
     {
         IsEditable = editable;
+    }
+
+    public void SetFormula(string? formula)
+    {
+        Formula = formula;
+    }
+
+    public void SetHeader(bool value)
+    {
+        IsHeader = value;
+    }
+
+    public void SetTotal(bool value)
+    {
+        IsTotal = value;
+    }
+
+    public void SetPosting(bool value)
+    {
+        AllowPosting = value;
+    }
+
+    public void SetVisibility(bool value)
+    {
+        IsVisible = value;
+    }
+
+    public void SetLevel(int level)
+    {
+        Level = level;
+    }
+
+    public void SetSortOrder(int sortOrder)
+    {
+        SortOrder = sortOrder;
     }
 }

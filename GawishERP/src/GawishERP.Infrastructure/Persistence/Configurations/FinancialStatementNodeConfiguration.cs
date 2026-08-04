@@ -44,5 +44,25 @@ public sealed class FinancialStatementNodeConfiguration
             .WithMany(x => x.Children)
             .HasForeignKey(x => x.ParentId)
             .OnDelete(DeleteBehavior.Restrict);
+        builder.Property(x => x.Formula)
+    .HasMaxLength(500);
+
+        builder.Property(x => x.IsHeader)
+            .IsRequired();
+
+        builder.Property(x => x.IsTotal)
+            .IsRequired();
+
+        builder.Property(x => x.AllowPosting)
+            .IsRequired();
+
+        builder.Property(x => x.IsVisible)
+            .IsRequired();
+
+        builder.Property(x => x.Level)
+            .IsRequired();
+
+        builder.Property(x => x.SortOrder)
+            .IsRequired();
     }
 }
