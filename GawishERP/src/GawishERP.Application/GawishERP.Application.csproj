@@ -12,7 +12,19 @@
 
 	<ItemGroup>
 		<Folder Include="Common\Base\" />
+		<Folder Include="Common\CRUD\" />
 		<Folder Include="Common\Validation\" />
+		<Folder Include="Features\Accounting\AccountStatement\Validators\" />
+		<Folder Include="Features\Accounting\GeneralLedger\Validators\" />
+		<Folder Include="Features\Accounting\JournalEntries\Commands\Delete\" />
+		<Folder Include="Features\Accounting\JournalEntries\Commands\Update\" />
+		<Folder Include="Features\Accounting\JournalEntries\Mapping\" />
+		<Folder Include="Features\Accounting\JournalEntries\Validators\" />
+		<Folder Include="Features\Accounting\OpeningBalances\Validators\" />
+		<Folder Include="Features\FiscalYears\Validators\" />
+		<Folder Include="Features\Purchasing\Purchase\Commands\Delete\" />
+		<Folder Include="Features\Purchasing\Purchase\Commands\Update\" />
+		<Folder Include="Features\Suppliers\Validators\" />
 		<Folder Include="Interfaces\" />
 		<Folder Include="Services\" />
 	</ItemGroup>

@@ -1,11 +1,13 @@
 ﻿using GawishERP.API.Authorization;
+using GawishERP.API.Controllers.Base;
+using GawishERP.Application.Features.Products.Commands.ActivateProduct;
 using GawishERP.Application.Features.Products.Commands.CreateProduct;
+using GawishERP.Application.Features.Products.Commands.DeactivateProduct;
 using GawishERP.Application.Features.Products.Commands.UpdateProduct;
 using GawishERP.Application.Features.Products.Queries.GetAllProducts;
 using GawishERP.Application.Features.Products.Queries.GetProductById;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using GawishERP.API.Controllers.Base;
 
 namespace GawishERP.API.Controllers;
 
@@ -42,7 +44,8 @@ public class ProductsController : BaseApiController
     [HasPermission("Products.View")]
     public async Task<IActionResult> GetById(Guid id)
     {
-        var result = await _mediator.Send(new GetProductByIdQuery(id));
+        var result = await _mediator.Send(
+            new GetProductByIdQuery(id));
 
         if (result.IsFailure)
         {
@@ -58,7 +61,8 @@ public class ProductsController : BaseApiController
 
     [HttpPost]
     [HasPermission("Products.Create")]
-    public async Task<IActionResult> Create(CreateProductCommand command)
+    public async Task<IActionResult> Create(
+        CreateProductCommand command)
     {
         var id = await _mediator.Send(command);
 
@@ -74,14 +78,15 @@ public class ProductsController : BaseApiController
     // ============================================
 
     [HttpPut("{id:guid}")]
-    [HasPermission("Products.Edit")]
+    [HasPermission("Products.Update")]
     public async Task<IActionResult> Update(
         Guid id,
         UpdateProductCommand command)
     {
         if (id != command.Id)
         {
-            return BadRequest("Route Id does not match request Id.");
+            return BadRequest(
+                "Route Id does not match request Id.");
         }
 
         var productId = await _mediator.Send(command);
@@ -90,6 +95,42 @@ public class ProductsController : BaseApiController
         {
             Id = productId,
             Message = "Product updated successfully."
+        });
+    }
+
+    // ============================================
+    // ACTIVATE PRODUCT
+    // ============================================
+
+    [HttpPut("{id:guid}/activate")]
+    [HasPermission("Products.Update")]
+    public async Task<IActionResult> Activate(Guid id)
+    {
+        await _mediator.Send(
+            new ActivateProductCommand(id));
+
+        return Ok(new
+        {
+            Id = id,
+            Message = "Product activated successfully."
+        });
+    }
+
+    // ============================================
+    // DEACTIVATE PRODUCT
+    // ============================================
+
+    [HttpPut("{id:guid}/deactivate")]
+    [HasPermission("Products.Update")]
+    public async Task<IActionResult> Deactivate(Guid id)
+    {
+        await _mediator.Send(
+            new DeactivateProductCommand(id));
+
+        return Ok(new
+        {
+            Id = id,
+            Message = "Product deactivated successfully."
         });
     }
 }

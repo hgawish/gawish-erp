@@ -21,16 +21,19 @@ public class GetAllProductsQueryHandler
         GetAllProductsQuery request,
         CancellationToken cancellationToken)
     {
-        var products = await _productRepository.GetAllAsync(
+        var result = await _productRepository.GetAllAsync(
             request.Search,
+            request.IsActive,
+            request.SortBy,
+            request.Descending,
             request.PageNumber,
             request.PageSize);
 
-        var items = ProductMapper.ToDtoList(products);
+        var items = ProductMapper.ToDtoList(result.Items);
 
         return new PagedResult<ProductDto>(
             items,
-            items.Count,
+            result.TotalCount,
             request.PageNumber,
             request.PageSize);
     }

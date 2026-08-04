@@ -8,10 +8,15 @@ public interface IProductRepository
 
     Task<Product?> GetByCodeAsync(string code);
 
-    Task<List<Product>> GetAllAsync(
+    Task<(List<Product> Items, int TotalCount)> GetAllAsync(
         string? search,
+        bool? isActive,
+        string? sortBy,
+        bool descending,
         int pageNumber,
         int pageSize);
+
+    Task<bool> ExistsAsync(Guid id);
 
     void Add(Product product);
 

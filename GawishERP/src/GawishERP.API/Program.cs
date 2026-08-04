@@ -1,8 +1,10 @@
+using System.Diagnostics;
 using System.Text;
 using GawishERP.API.Authorization;
 using GawishERP.API.Middleware;
 using GawishERP.Application;
 using GawishERP.Application.Common.Settings;
+using GawishERP.Domain.Interfaces;
 using GawishERP.Infrastructure;
 using GawishERP.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -60,7 +62,7 @@ builder.Services
             {
                 Console.WriteLine("================================");
                 Console.WriteLine("JWT Authentication Failed");
-                Console.WriteLine(context.Exception);
+                Console.WriteLine(context.Exception.ToString());
                 Console.WriteLine("================================");
 
                 return Task.CompletedTask;
@@ -68,10 +70,7 @@ builder.Services
 
             OnTokenValidated = context =>
             {
-                Console.WriteLine("================================");
-                Console.WriteLine("JWT Token Validated");
-                Console.WriteLine("================================");
-
+                Debug.WriteLine("JWT Token Validated");
                 return Task.CompletedTask;
             }
         };
@@ -149,6 +148,7 @@ builder.Services.AddApplication();
 
 builder.Services.AddInfrastructure(
     builder.Configuration);
+
 
 // ===========================================
 // Build

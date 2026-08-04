@@ -9,4 +9,10 @@ public class GetAllProductsQuery
     : PaginationRequest,
       IRequest<PagedResult<ProductDto>>
 {
+    /// <summary>
+    /// null = All Products
+    /// true = Active Products
+    /// false = Inactive Products
+    /// </summary>
+    public bool? IsActive { get; set; }
 }

@@ -1,0 +1,572 @@
+# Gawish ERP Development Guide
+
+Version: 1.0
+Architecture: Clean Architecture + CQRS + DDD
+Framework: ASP.NET Core 9
+Database: SQL Server
+ORM: Entity Framework Core
+
+---
+
+# 1. General Principles
+
+Gawish ERP follows:
+
+- Clean Architecture
+- CQRS
+- Domain Driven Design (DDD)
+- SOLID Principles
+
+Business Rules always belong to Domain.
+
+Application orchestrates use cases.
+
+Infrastructure implements technical details.
+
+API only exposes endpoints.
+
+Never mix responsibilities.
+
+---
+
+# 2. Project Structure
+
+src/
+
+    GawishERP.Domain
+
+    GawishERP.Application
+
+    GawishERP.Infrastructure
+
+    GawishERP.API
+
+tests/
+
+docs/
+
+---
+
+# 3. Layer Responsibilities
+
+Domain
+
+Contains:
+
+Entities
+
+Value Objects
+
+Enums
+
+Interfaces
+
+Business Rules
+
+No EF Core
+
+No ASP.NET
+
+No MediatR
+
+No AutoMapper
+
+Never reference Infrastructure.
+
+---
+
+Application
+
+Contains:
+
+CQRS
+
+Commands
+
+Queries
+
+Validators
+
+DTOs
+
+Interfaces
+
+MediatR Handlers
+
+Application never references DbContext.
+
+Application never references SQL Server.
+
+Application never references EF Core DbContext.
+
+---
+
+Infrastructure
+
+Contains:
+
+EF Core
+
+Repositories
+
+Services
+
+Persistence
+
+Configurations
+
+Migrations
+
+Only Infrastructure knows EF Core.
+
+---
+
+API
+
+Contains:
+
+Controllers
+
+Authentication
+
+Swagger
+
+Filters
+
+Middleware
+
+Nothing else.
+
+---
+
+# 4. CQRS Rules
+
+Every module contains:
+
+Commands
+
+Queries
+
+Responses
+
+DTOs
+
+Validators
+
+Example
+
+Sales
+
+Commands
+
+Create
+
+Post
+
+Cancel
+
+Queries
+
+GetById
+
+GetList
+
+Never mix Commands with Queries.
+
+---
+
+# 5. Repository Pattern
+
+Repositories expose business operations.
+
+Avoid exposing DbContext.
+
+Avoid exposing EF Core.
+
+Preferred:
+
+Task<Entity?>
+
+Task<List<Entity>>
+
+Task<(List<Entity>, int TotalCount)>
+
+Avoid IQueryable in Application.
+
+Filtering should happen inside Repository.
+
+---
+
+# 6. Entity Rules
+
+Every Entity:
+
+Private setters
+
+Constructors enforce rules
+
+Methods enforce business logic
+
+Example
+
+Post()
+
+Cancel()
+
+Approve()
+
+Reject()
+
+Business rules never belong to Handlers.
+
+---
+
+# 7. Commands
+
+One command
+
+One handler
+
+One responsibility
+
+Command handlers:
+
+Validate
+
+Call Domain
+
+Call Repository
+
+Commit UnitOfWork
+
+Never contain business logic.
+
+---
+
+# 8. Queries
+
+Queries are read-only.
+
+Always use:
+
+AsNoTracking()
+
+Paging
+
+Filtering
+
+Sorting
+
+Repository returns DTO-ready entities.
+
+---
+
+# 9. Unit Of Work
+
+One SaveChanges()
+
+per request.
+
+Never call SaveChanges twice unless required.
+
+---
+
+# 10. Inventory Rules
+
+Stock is modified ONLY through InventoryService.
+
+Never modify InventoryBalance directly.
+
+Every stock movement creates:
+
+InventoryBalance
+
+StockTransaction
+
+Supported transaction types:
+
+OpeningBalance
+
+Purchase
+
+PurchaseReturn
+
+Sale
+
+SalesReturn
+
+Transfer
+
+AdjustmentIncrease
+
+AdjustmentDecrease
+
+Production
+
+StockCount
+
+---
+
+# 11. Document Lifecycle
+
+Draft
+
+↓
+
+Posted
+
+↓
+
+Cancelled
+
+Only Posted documents affect inventory.
+
+Cancelling reverses inventory.
+
+---
+
+# 12. Number Series
+
+Document numbers are generated ONLY through:
+
+IDocumentNumberService
+
+Never generate numbers manually.
+
+---
+
+# 13. Validation
+
+Use FluentValidation.
+
+No validation inside Controllers.
+
+Basic validation in Validators.
+
+Business validation in Domain.
+
+---
+
+# 14. Naming Convention
+
+Commands
+
+CreateSalesCommand
+
+PostSalesCommand
+
+CancelSalesCommand
+
+Queries
+
+GetSalesByIdQuery
+
+GetSalesListQuery
+
+Responses
+
+CreateSalesResponse
+
+DTO
+
+SalesLineDto
+
+Handlers
+
+CreateSalesCommandHandler
+
+---
+
+# 15. Folder Structure
+
+Feature
+
+Commands
+
+Queries
+
+Validators
+
+DTOs
+
+Responses
+
+Handlers
+
+Keep every feature isolated.
+
+---
+
+# 16. Database Configuration
+
+Every Entity has:
+
+EntityConfiguration
+
+Never configure entities inside DbContext.
+
+Use:
+
+ApplyConfigurationsFromAssembly()
+
+---
+
+# 17. API Rules
+
+Controllers remain thin.
+
+Controller
+
+↓
+
+Mediator
+
+↓
+
+Handler
+
+↓
+
+Repository
+
+↓
+
+Domain
+
+Never call Repository directly from Controller.
+
+---
+
+# 18. Error Handling
+
+Business errors
+
+InvalidOperationException
+
+Validation errors
+
+FluentValidation
+
+Unexpected errors
+
+Global Exception Middleware
+
+---
+
+# 19. Logging
+
+Every Post
+
+Cancel
+
+Delete
+
+Adjustment
+
+must be logged.
+
+Future:
+
+Audit Trail Module.
+
+---
+
+# 20. Future Modules
+
+Accounting
+
+Manufacturing
+
+CRM
+
+HR
+
+Payroll
+
+Assets
+
+Budget
+
+Reports
+
+Dashboard
+
+BI
+
+---
+
+# 21. Coding Standards
+
+Use file-scoped namespaces.
+
+Use sealed classes where possible.
+
+Use records for Commands.
+
+Async all the way.
+
+Avoid magic strings.
+
+Use enums.
+
+One class per file.
+
+Maximum readability.
+
+---
+
+# 22. Performance
+
+Use:
+
+AsNoTracking()
+
+SplitQuery()
+
+Paging
+
+Indexes
+
+Compiled Queries where needed.
+
+Avoid N+1 Queries.
+
+---
+
+# 23. Testing
+
+Domain Unit Tests
+
+Application Unit Tests
+
+Repository Integration Tests
+
+API Integration Tests
+
+---
+
+# 24. Git
+
+Feature Branches
+
+Small commits
+
+Meaningful commit messages
+
+No direct commits to main.
+
+---
+
+# 25. Golden Rule
+
+If business logic exists,
+
+it belongs to Domain.
+
+If technical logic exists,
+
+it belongs to Infrastructure.
+
+Application only coordinates.
+
+API only exposes.

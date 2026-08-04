@@ -3,12 +3,17 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GawishERP.Infrastructure.Persistence;
 
-public class ApplicationDbContext : DbContext
+public sealed class ApplicationDbContext : DbContext
 {
-    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
+    public ApplicationDbContext(
+        DbContextOptions<ApplicationDbContext> options)
         : base(options)
     {
     }
+
+    // ============================================================
+    // Security
+    // ============================================================
 
     public DbSet<User> Users => Set<User>();
 
@@ -20,101 +25,91 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
 
-    // Products
+    // ============================================================
+    // Master Data
+    // ============================================================
+
     public DbSet<Product> Products => Set<Product>();
+
+    public DbSet<Customer> Customers => Set<Customer>();
+
+    public DbSet<Supplier> Suppliers => Set<Supplier>();
+
+    public DbSet<Warehouse> Warehouses => Set<Warehouse>();
+
+    // ============================================================
+    // Accounting
+    // ============================================================
+
+    public DbSet<Account> Accounts => Set<Account>();
+
+    public DbSet<JournalEntryHeader> JournalEntryHeaders => Set<JournalEntryHeader>();
+
+    public DbSet<JournalEntryLine> JournalEntryLines => Set<JournalEntryLine>();
+    public DbSet<LedgerTransaction> LedgerTransactions => Set<LedgerTransaction>();
+
+    public DbSet<AccountBalance> AccountBalances => Set<AccountBalance>();
+    public DbSet<FinancialStatementNode> AccountReportCategories
+   => Set<FinancialStatementNode>();
+
+    // ============================================================
+    // Inventory
+    // ============================================================
+
+    public DbSet<StockTransaction> StockTransactions => Set<StockTransaction>();
+
+    public DbSet<InventoryBalance> InventoryBalances => Set<InventoryBalance>();
+
+    // ============================================================
+    // Opening Balance
+    // ============================================================
+
+    public DbSet<OpeningBalanceHeader> OpeningBalanceHeaders => Set<OpeningBalanceHeader>();
+
+    public DbSet<OpeningBalanceLine> OpeningBalanceLines => Set<OpeningBalanceLine>();
+
+    // ============================================================
+    // Purchasing
+    // ============================================================
+
+    public DbSet<PurchaseHeader> PurchaseHeaders => Set<PurchaseHeader>();
+
+    public DbSet<PurchaseLine> PurchaseLines => Set<PurchaseLine>();
+
+    public DbSet<PurchaseReturnHeader> PurchaseReturnHeaders => Set<PurchaseReturnHeader>();
+
+    public DbSet<PurchaseReturnLine> PurchaseReturnLines => Set<PurchaseReturnLine>();
+
+    // ============================================================
+    // Sales
+    // ============================================================
+
+    public DbSet<SalesHeader> SalesHeaders => Set<SalesHeader>();
+
+    public DbSet<SalesLine> SalesLines => Set<SalesLine>();
+
+    public DbSet<SalesReturnHeader> SalesReturnHeaders => Set<SalesReturnHeader>();
+
+    public DbSet<SalesReturnLine> SalesReturnLines => Set<SalesReturnLine>();
+
+    // ============================================================
+    // System
+    // ============================================================
+
+    public DbSet<FiscalYear> FiscalYears => Set<FiscalYear>();
+
+    public DbSet<NumberSeries> NumberSeries => Set<NumberSeries>();
+
+    // ============================================================
+    // Model Configuration
+    // ============================================================
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
-        // ============================
-        // UserRole
-        // ============================
-
-        modelBuilder.Entity<UserRole>()
-            .HasKey(x => new { x.UserId, x.RoleId });
-
-        modelBuilder.Entity<UserRole>()
-            .HasOne(x => x.User)
-            .WithMany(x => x.UserRoles)
-            .HasForeignKey(x => x.UserId);
-
-        modelBuilder.Entity<UserRole>()
-            .HasOne(x => x.Role)
-            .WithMany(x => x.UserRoles)
-            .HasForeignKey(x => x.RoleId);
-
-        // ============================
-        // RolePermission
-        // ============================
-
-        modelBuilder.Entity<RolePermission>()
-            .HasKey(x => new { x.RoleId, x.PermissionId });
-
-        modelBuilder.Entity<RolePermission>()
-            .HasOne(x => x.Role)
-            .WithMany(x => x.RolePermissions)
-            .HasForeignKey(x => x.RoleId);
-
-        modelBuilder.Entity<RolePermission>()
-            .HasOne(x => x.Permission)
-            .WithMany(x => x.RolePermissions)
-            .HasForeignKey(x => x.PermissionId);
-
-        // ============================
-        // User
-        // ============================
-
-        modelBuilder.Entity<User>()
-            .HasIndex(x => x.Email)
-            .IsUnique();
-
-        // ============================
-        // Role
-        // ============================
-
-        modelBuilder.Entity<Role>()
-            .HasIndex(x => x.Name)
-            .IsUnique();
-
-        // ============================
-        // Permission
-        // ============================
-
-        modelBuilder.Entity<Permission>()
-            .HasIndex(x => x.Name)
-            .IsUnique();
-
-        // ============================
-        // Product
-        // ============================
-
-        modelBuilder.Entity<Product>()
-            .HasIndex(x => x.Code)
-            .IsUnique();
-
-        modelBuilder.Entity<Product>()
-            .Property(x => x.Code)
-            .HasMaxLength(50);
-
-        modelBuilder.Entity<Product>()
-            .Property(x => x.Name)
-            .HasMaxLength(200);
-
-        modelBuilder.Entity<Product>()
-            .Property(x => x.ArabicName)
-            .HasMaxLength(200);
-
-        modelBuilder.Entity<Product>()
-            .Property(x => x.Description)
-            .HasMaxLength(1000);
-
-        modelBuilder.Entity<Product>()
-            .Property(x => x.CostPrice)
-            .HasPrecision(18, 2);
-
-        modelBuilder.Entity<Product>()
-            .Property(x => x.SalePrice)
-            .HasPrecision(18, 2);
+        modelBuilder.ApplyConfigurationsFromAssembly(
+            typeof(ApplicationDbContext).Assembly);
     }
+   
 }

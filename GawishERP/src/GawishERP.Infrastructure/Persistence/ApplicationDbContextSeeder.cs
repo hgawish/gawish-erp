@@ -1,6 +1,7 @@
-﻿using GawishERP.Domain.Entities;
+﻿using BCrypt.Net;
+using GawishERP.Domain.Common;
+using GawishERP.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
-using BCrypt.Net;
 
 namespace GawishERP.Infrastructure.Persistence;
 
@@ -10,121 +11,202 @@ public static class ApplicationDbContextSeeder
     {
         await context.Database.MigrateAsync();
 
-        // ===========================
-        // Roles
-        // ===========================
+        await SeedRolesAsync(context);
 
-        if (!context.Roles.Any())
+        await SeedPermissionsAsync(context);
+
+        await SeedSuperAdminRolePermissionsAsync(context);
+
+        await SeedAdminUserAsync(context);
+
+        await SeedNumberSeriesAsync(context);
+    }
+
+    // ======================================================
+    // Roles
+    // ======================================================
+
+    private static async Task SeedRolesAsync(ApplicationDbContext context)
+    {
+        var roles = new List<Role>
         {
-            var superAdmin = new Role("SuperAdmin", "System Administrator");
-            var admin = new Role("Admin", "Administrator");
-            var sales = new Role("Sales", "Sales Department");
-            var warehouse = new Role("Warehouse", "Warehouse Department");
-            var accountant = new Role("Accountant", "Accounting Department");
+            new("SuperAdmin", "System Administrator"),
+            new("Admin", "Administrator"),
+            new("Sales", "Sales Department"),
+            new("Warehouse", "Warehouse Department"),
+            new("Accountant", "Accounting Department")
+        };
 
-            context.Roles.AddRange(
-                superAdmin,
-                admin,
-                sales,
-                warehouse,
-                accountant);
-
-            await context.SaveChangesAsync();
+        foreach (var role in roles)
+        {
+            if (!await context.Roles.AnyAsync(x => x.Name == role.Name))
+            {
+                context.Roles.Add(role);
+            }
         }
 
-        // ===========================
-        // Permissions
-        // ===========================
+        await context.SaveChangesAsync();
+    }
 
-        if (!context.Permissions.Any())
+    // ======================================================
+    // Permissions
+    // ======================================================
+
+    private static async Task SeedPermissionsAsync(ApplicationDbContext context)
+    {
+        var permissions = new List<Permission>
         {
-            var permissions = new List<Permission>
-            {
-                new("Users.View", "View Users"),
-                new("Users.Create", "Create Users"),
-                new("Users.Update", "Update Users"),
-                new("Users.Delete", "Delete Users"),
+            new("Warehouses.View", "View Warehouses"),
+            new("Warehouses.Create", "Create Warehouses"),
+            new("Warehouses.Edit", "Edit Warehouses"),
+            new("Warehouses.Delete", "Delete Warehouses"),
 
-                new("Roles.View", "View Roles"),
-                new("Roles.Manage", "Manage Roles"),
+            new("Users.View", "View Users"),
+            new("Users.Create", "Create Users"),
+            new("Users.Update", "Update Users"),
+            new("Users.Delete", "Delete Users"),
 
-                new("Products.View", "View Products"),
-                new("Products.Create", "Create Products"),
-                new("Products.Update", "Update Products"),
-                new("Products.Delete", "Delete Products"),
+            new("Roles.View", "View Roles"),
+            new("Roles.Manage", "Manage Roles"),
 
-                new("Customers.View", "View Customers"),
-                new("Customers.Create", "Create Customers"),
-                new("Customers.Update", "Update Customers"),
-                new("Customers.Delete", "Delete Customers"),
+            new("Products.View", "View Products"),
+            new("Products.Create", "Create Products"),
+            new("Products.Update", "Update Products"),
+            new("Products.Delete", "Delete Products"),
 
-                new("Sales.View", "View Sales"),
-                new("Sales.Create", "Create Sales"),
-                new("Sales.Update", "Update Sales"),
+            new("Customers.View", "View Customers"),
+            new("Customers.Create", "Create Customers"),
+            new("Customers.Update", "Update Customers"),
+            new("Customers.Delete", "Delete Customers"),
 
-                new("Purchases.View", "View Purchases"),
-                new("Purchases.Create", "Create Purchases"),
+            new("Suppliers.View", "View Suppliers"),
+            new("Suppliers.Create", "Create Suppliers"),
+            new("Suppliers.Edit", "Edit Suppliers"),
+            new("Suppliers.Delete", "Delete Suppliers"),
 
-                new("Inventory.View", "View Inventory"),
-                new("Inventory.Update", "Update Inventory")
-            };
+            new("Sales.View", "View Sales"),
+            new("Sales.Create", "Create Sales"),
+            new("Sales.Update", "Update Sales"),
 
-            context.Permissions.AddRange(permissions);
+            new("Purchases.View", "View Purchases"),
+            new("Purchases.Create", "Create Purchases"),
 
-            await context.SaveChangesAsync();
-        }// ===========================
-         // SuperAdmin Permissions
-         // ===========================
+            new("Inventory.View", "View Inventory"),
+            new("Inventory.Update", "Update Inventory")
+        };
 
-
-        var superAdminRole = await context.Roles
-            .FirstOrDefaultAsync(x => x.Name == "SuperAdmin");
-
-        if (superAdminRole is not null)
+        foreach (var permission in permissions)
         {
-            var allPermissions = await context.Permissions.ToListAsync();
-
-            foreach (var permission in allPermissions)
+            if (!await context.Permissions.AnyAsync(x => x.Name == permission.Name))
             {
-                bool exists = await context.RolePermissions.AnyAsync(x =>
+                context.Permissions.Add(permission);
+            }
+        }
+
+        await context.SaveChangesAsync();
+    }
+
+    // ======================================================
+    // SuperAdmin Permissions
+    // ======================================================
+
+    private static async Task SeedSuperAdminRolePermissionsAsync(ApplicationDbContext context)
+    {
+        var superAdminRole =
+            await context.Roles.SingleAsync(x => x.Name == "SuperAdmin");
+
+        var allPermissions =
+            await context.Permissions.ToListAsync();
+
+        foreach (var permission in allPermissions)
+        {
+            bool exists =
+                await context.RolePermissions.AnyAsync(x =>
                     x.RoleId == superAdminRole.Id &&
                     x.PermissionId == permission.Id);
 
-                if (!exists)
-                {
-                    context.RolePermissions.Add(
-                        new RolePermission(
-                            superAdminRole.Id,
-                            permission.Id));
-                }
-            }
-            // ===========================
-            // Super Admin User
-            // ===========================
-
-            var adminUser = await context.Users
-                .FirstOrDefaultAsync(x => x.Email == "admin@gawisherp.com");
-
-            if (adminUser is null && superAdminRole is not null)
+            if (!exists)
             {
-                var user = new User(
-                    "System",
-                    "Administrator",
-                    "admin@gawisherp.com",
-                    BCrypt.Net.BCrypt.HashPassword("Admin@123"));
-
-                context.Users.Add(user);
-
-                await context.SaveChangesAsync();
-
-                context.UserRoles.Add(
-                    new UserRole(
-                        user.Id,
-                        superAdminRole.Id));
-
-                await context.SaveChangesAsync();
+                context.RolePermissions.Add(
+                    new RolePermission(
+                        superAdminRole.Id,
+                        permission.Id));
             }
+        }
+
+        await context.SaveChangesAsync();
+    }
+
+    // ======================================================
+    // Admin User
+    // ======================================================
+
+    private static async Task SeedAdminUserAsync(ApplicationDbContext context)
+    {
+        var adminUser =
+            await context.Users.SingleOrDefaultAsync(
+                x => x.Email == "admin@gawisherp.com");
+
+        if (adminUser == null)
+        {
+            adminUser = new User(
+                "System",
+                "Administrator",
+                "admin@gawisherp.com",
+                BCrypt.Net.BCrypt.HashPassword("Admin@123"));
+
+            context.Users.Add(adminUser);
+
             await context.SaveChangesAsync();
         }
+
+        var superAdminRole =
+            await context.Roles.SingleAsync(x => x.Name == "SuperAdmin");
+
+        bool hasRole =
+            await context.UserRoles.AnyAsync(x =>
+                x.UserId == adminUser.Id &&
+                x.RoleId == superAdminRole.Id);
+
+        if (!hasRole)
+        {
+            context.UserRoles.Add(
+                new UserRole(
+                    adminUser.Id,
+                    superAdminRole.Id));
+
+            await context.SaveChangesAsync();
+        }
+    }
+
+    // ======================================================
+    // Number Series
+    // ======================================================
+
+    private static async Task SeedNumberSeriesAsync(ApplicationDbContext context)
+    {
+        if (await context.NumberSeries.AnyAsync())
+            return;
+
+        Console.WriteLine("Seeding Number Series...");
+
+        var series = new List<NumberSeries>
+        {
+            new(DocumentType.OpeningBalance, "OB"),
+            new(DocumentType.Purchase, "PO"),
+            new(DocumentType.PurchaseReturn, "PR"),
+            new(DocumentType.Sales, "SO"),
+            new(DocumentType.SalesReturn, "SR"),
+            new(DocumentType.Transfer, "TR"),
+            new(DocumentType.Adjustment, "ADJ"),
+            new(DocumentType.Production, "MO"),
+            new(DocumentType.StockCount, "SC")
+        };
+
+        await context.NumberSeries.AddRangeAsync(series);
+
+        await context.SaveChangesAsync();
+
+        Console.WriteLine("Number Series Seeded Successfully.");
     }
 }

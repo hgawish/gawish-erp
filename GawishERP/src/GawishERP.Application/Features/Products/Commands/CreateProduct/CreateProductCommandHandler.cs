@@ -23,6 +23,15 @@ public class CreateProductCommandHandler
         CreateProductCommand request,
         CancellationToken cancellationToken)
     {
+        var existingProduct =
+            await _productRepository.GetByCodeAsync(request.Code);
+
+        if (existingProduct is not null)
+        {
+            throw new InvalidOperationException(
+                $"Product code '{request.Code}' already exists.");
+        }
+
         var product = new Product(
             request.Code,
             request.Name,
