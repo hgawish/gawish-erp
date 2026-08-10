@@ -53,21 +53,6 @@ public interface IStockTransactionRepository
     //=========================================================
     // Get By Reference
     //=========================================================
-    //
-    // Used for historical inventory costing and document
-    // reversal.
-    //
-    // Example:
-    //
-    // Sales Invoice
-    // ReferenceId = SalesHeader.Id
-    // TransactionType = Sale
-    //
-    // Sales Return
-    // ReferenceId = SalesReturnHeader.Id
-    // TransactionType = SalesReturn
-    //
-    //=========================================================
 
     Task<List<StockTransaction>> GetByReferenceAsync(
         Guid referenceId,
