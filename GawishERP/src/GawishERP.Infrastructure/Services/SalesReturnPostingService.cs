@@ -46,8 +46,7 @@ public sealed class SalesReturnPostingService
         SalesReturnHeader salesReturn,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(
-            salesReturn);
+        ArgumentNullException.ThrowIfNull(salesReturn);
 
         var lines =
             salesReturn.Lines.ToList();
@@ -59,23 +58,7 @@ public sealed class SalesReturnPostingService
         }
 
         //=====================================================
-        // Get Original Sale Stock Transactions
-        //=====================================================
-        //
-        // The original Sales Invoice created StockTransaction
-        // records using:
-        //
-        // ReferenceId = SalesHeader.Id
-        // TransactionType = Sale
-        //
-        // Those transactions contain the historical UnitCost.
-        //
-        // We MUST NOT use:
-        //
-        // SalesLine.UnitPrice
-        //
-        // because UnitPrice is the customer's selling price.
-        //
+        // Get Original Sale Transactions
         //=====================================================
 
         var originalSaleTransactions =
@@ -87,13 +70,13 @@ public sealed class SalesReturnPostingService
         if (originalSaleTransactions.Count == 0)
         {
             throw new InvalidOperationException(
-                $"Original sales inventory transactions " +
-                $"were not found for sales document " +
+                $"Original sale inventory transactions were " +
+                $"not found for sales document " +
                 $"'{salesReturn.SalesId}'.");
         }
 
         //=====================================================
-        // Build Posting Lines
+        // Posting Lines
         //=====================================================
 
         var postingLines =
@@ -105,7 +88,7 @@ public sealed class SalesReturnPostingService
         foreach (var line in lines)
         {
             //=================================================
-            // Find Original Sale Cost
+            // Find Original Sale Transaction
             //=================================================
 
             var originalTransaction =
@@ -120,10 +103,14 @@ public sealed class SalesReturnPostingService
             if (originalTransaction is null)
             {
                 throw new InvalidOperationException(
-                    $"Original sales stock transaction " +
-                    $"was not found for product " +
+                    $"Original sale inventory transaction was " +
+                    $"not found for product " +
                     $"'{line.ProductId}'.");
             }
+
+            //=================================================
+            // Historical Cost
+            //=================================================
 
             var historicalUnitCost =
                 originalTransaction.UnitCost;
@@ -138,10 +125,10 @@ public sealed class SalesReturnPostingService
             // Return Inventory
             //=================================================
             //
-            // The stock is increased using the SAME
-            // historical cost that was used when the
-            // original sale reduced inventory.
+            // Sales Return increases inventory using the
+            // historical cost of the original sale.
             //
+            // This is NOT the customer's selling price.
             //=================================================
 
             await _inventoryService.AddSalesReturnAsync(
@@ -188,7 +175,7 @@ public sealed class SalesReturnPostingService
                     Quantity =
                         line.Quantity,
 
-                    // Sales return selling price.
+                    // Customer refund / return value.
                     UnitPrice =
                         line.UnitPrice,
 
@@ -214,10 +201,6 @@ public sealed class SalesReturnPostingService
         var context =
             new PostingContext
             {
-                //=================================================
-                // Document
-                //=================================================
-
                 DocumentId =
                     salesReturn.Id,
 
@@ -246,14 +229,22 @@ public sealed class SalesReturnPostingService
                     salesReturn.Notes,
 
                 //=================================================
-                // Amounts
+                // Sales Return Value
                 //=================================================
 
                 Amount =
                     salesReturn.TotalAmount,
 
+                //=================================================
+                // Historical Inventory Cost
+                //=================================================
+
                 CostAmount =
                     totalCost,
+
+                //=================================================
+                // Quantity
+                //=================================================
 
                 Quantity =
                     lines.Sum(
@@ -313,18 +304,16 @@ public sealed class SalesReturnPostingService
         }
 
         //=====================================================
-        // Get Historical Sales Return Transactions
+        // Get Original Sales Return Transactions
         //=====================================================
         //
-        // When the Sales Return was posted, InventoryService
-        // created StockTransaction records with:
+        // The original Sales Return created:
         //
-        // ReferenceId = SalesReturn.Id
         // TransactionType = SalesReturn
+        // ReferenceId      = SalesReturn.Id
         //
-        // Those records contain the exact UnitCost used
-        // when the stock was increased.
-        //
+        // UnitCost contains the historical cost that was
+        // used when inventory was returned.
         //=====================================================
 
         var salesReturnTransactions =
@@ -336,13 +325,13 @@ public sealed class SalesReturnPostingService
         if (salesReturnTransactions.Count == 0)
         {
             throw new InvalidOperationException(
-                $"Sales return inventory transactions " +
-                $"were not found for document " +
-                $"'{salesReturn.Id}'.");
+                $"Sales return inventory transactions were " +
+                $"not found for document " +
+                $"'{salesReturn.DocumentNumber}'.");
         }
 
         //=====================================================
-        // Build Reverse Posting Lines
+        // Posting Lines
         //=====================================================
 
         var postingLines =
@@ -369,10 +358,14 @@ public sealed class SalesReturnPostingService
             if (originalTransaction is null)
             {
                 throw new InvalidOperationException(
-                    $"Original sales return stock " +
-                    $"transaction was not found for " +
-                    $"product '{line.ProductId}'.");
+                    $"Original sales return inventory " +
+                    $"transaction was not found for product " +
+                    $"'{line.ProductId}'.");
             }
+
+            //=================================================
+            // Historical Cost
+            //=================================================
 
             var historicalUnitCost =
                 originalTransaction.UnitCost;
@@ -387,11 +380,15 @@ public sealed class SalesReturnPostingService
             // Reverse Inventory
             //=================================================
             //
-            // The original Sales Return increased stock.
+            // Original Sales Return:
             //
-            // Reversing it must decrease stock using the
-            // SAME historical cost.
+            //     Inventory +
             //
+            // Reverse:
+            //
+            //     Inventory -
+            //
+            // using the SAME historical cost.
             //=================================================
 
             await _inventoryService
@@ -463,10 +460,6 @@ public sealed class SalesReturnPostingService
         var context =
             new PostingContext
             {
-                //=================================================
-                // Document
-                //=================================================
-
                 DocumentId =
                     salesReturn.Id,
 
@@ -495,14 +488,22 @@ public sealed class SalesReturnPostingService
                     salesReturn.Notes,
 
                 //=================================================
-                // Amounts
+                // Return Value
                 //=================================================
 
                 Amount =
                     salesReturn.TotalAmount,
 
+                //=================================================
+                // Historical Inventory Cost
+                //=================================================
+
                 CostAmount =
                     totalCost,
+
+                //=================================================
+                // Quantity
+                //=================================================
 
                 Quantity =
                     lines.Sum(
