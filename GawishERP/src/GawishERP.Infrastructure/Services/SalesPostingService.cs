@@ -9,17 +9,28 @@ namespace GawishERP.Infrastructure.Services;
 public sealed class SalesPostingService : ISalesPostingService
 {
     private readonly IPostingEngine _postingEngine;
+
     private readonly ISalesRepository _salesRepository;
+
     private readonly IInventoryService _inventoryService;
+
+    private readonly IStockTransactionRepository
+        _stockTransactionRepository;
 
     public SalesPostingService(
         IPostingEngine postingEngine,
         ISalesRepository salesRepository,
-        IInventoryService inventoryService)
+        IInventoryService inventoryService,
+        IStockTransactionRepository stockTransactionRepository)
     {
         _postingEngine = postingEngine;
+
         _salesRepository = salesRepository;
+
         _inventoryService = inventoryService;
+
+        _stockTransactionRepository =
+            stockTransactionRepository;
     }
 
     //=========================================================
@@ -43,19 +54,9 @@ public sealed class SalesPostingService : ISalesPostingService
         //=====================================================
         // Inventory Costing
         //=====================================================
-        //
-        // For every sales line:
-        //
-        // 1. Read current AverageCost from InventoryBalance.
-        // 2. Decrease stock.
-        // 3. Capture actual UnitCost.
-        // 4. Capture actual TotalCost.
-        //
-        // The supplied UnitPrice is NEVER used as inventory cost.
-        //=====================================================
 
-        var postingLines = new List<PostingLineContext>(
-            lines.Count);
+        var postingLines =
+            new List<PostingLineContext>(lines.Count);
 
         decimal totalCost = 0m;
 
@@ -63,38 +64,63 @@ public sealed class SalesPostingService : ISalesPostingService
         {
             var inventoryResult =
                 await _inventoryService.AddSaleAsync(
-                    productId: line.ProductId,
-                    warehouseId: sales.WarehouseId,
-                    quantity: line.Quantity,
-                    unitCost: 0m,
-                    transactionDate: sales.DocumentDate,
-                    referenceId: sales.Id,
-                    referenceNumber: sales.DocumentNumber,
-                    notes: line.Notes,
-                    cancellationToken: cancellationToken);
+                    productId:
+                        line.ProductId,
+
+                    warehouseId:
+                        sales.WarehouseId,
+
+                    quantity:
+                        line.Quantity,
+
+                    unitCost:
+                        0m,
+
+                    transactionDate:
+                        sales.DocumentDate,
+
+                    referenceId:
+                        sales.Id,
+
+                    referenceNumber:
+                        sales.DocumentNumber,
+
+                    notes:
+                        line.Notes,
+
+                    cancellationToken:
+                        cancellationToken);
 
             totalCost += inventoryResult.TotalCost;
 
             postingLines.Add(
                 new PostingLineContext
                 {
-                    ProductId = line.ProductId,
+                    ProductId =
+                        line.ProductId,
 
-                    WarehouseId = sales.WarehouseId,
+                    WarehouseId =
+                        sales.WarehouseId,
 
-                    Quantity = line.Quantity,
+                    Quantity =
+                        line.Quantity,
 
                     // Customer selling price.
-                    UnitPrice = line.UnitPrice,
+                    UnitPrice =
+                        line.UnitPrice,
 
-                    // Actual inventory cost returned by InventoryService.
-                    UnitCost = inventoryResult.UnitCost,
+                    // Actual inventory cost.
+                    UnitCost =
+                        inventoryResult.UnitCost,
 
-                    BatchNumber = line.BatchNumber,
+                    BatchNumber =
+                        line.BatchNumber,
 
-                    ExpiryDate = line.ExpiryDate,
+                    ExpiryDate =
+                        line.ExpiryDate,
 
-                    Description = line.Notes
+                    Description =
+                        line.Notes
                 });
         }
 
@@ -102,68 +128,73 @@ public sealed class SalesPostingService : ISalesPostingService
         // Posting Context
         //=====================================================
 
-        var context = new PostingContext
-        {
-            //=================================================
-            // Document
-            //=================================================
+        var context =
+            new PostingContext
+            {
+                DocumentId =
+                    sales.Id,
 
-            DocumentId = sales.Id,
+                DocumentType =
+                    DocumentType.Sales,
 
-            DocumentType = DocumentType.Sales,
+                DocumentNumber =
+                    sales.DocumentNumber,
 
-            DocumentNumber = sales.DocumentNumber,
+                PostingDate =
+                    sales.DocumentDate,
 
-            PostingDate = sales.DocumentDate,
+                FiscalYearId =
+                    sales.FiscalYearId,
 
-            FiscalYearId = sales.FiscalYearId,
+                CompanyId =
+                    sales.CompanyId,
 
-            CompanyId = sales.CompanyId,
+                BranchId =
+                    sales.BranchId,
 
-            BranchId = sales.BranchId,
+                ReferenceNumber =
+                    sales.DocumentNumber,
 
-            ReferenceNumber = sales.DocumentNumber,
+                Description =
+                    sales.Notes,
 
-            Description = sales.Notes,
+                //=================================================
+                // Sales Amounts
+                //=================================================
 
-            //=================================================
-            // Sales Amounts
-            //=================================================
+                Amount =
+                    sales.NetTotal,
 
-            Amount = sales.NetTotal,
+                TotalBeforeDiscount =
+                    sales.TotalBeforeDiscount,
 
-            TotalBeforeDiscount =
-                sales.TotalBeforeDiscount,
+                DiscountAmount =
+                    sales.DiscountAmount,
 
-            DiscountAmount =
-                sales.DiscountAmount,
+                TaxAmount =
+                    sales.TaxAmount,
 
-            TaxAmount =
-                sales.TaxAmount,
+                //=================================================
+                // Actual Inventory Cost
+                //=================================================
 
-            //=================================================
-            // Actual Inventory Cost
-            //=================================================
+                CostAmount =
+                    totalCost,
 
-            CostAmount = totalCost,
+                //=================================================
+                // Quantity
+                //=================================================
 
-            //=================================================
-            // Quantity
-            //=================================================
+                Quantity =
+                    lines.Sum(x => x.Quantity),
 
-            Quantity =
-                lines.Sum(x => x.Quantity),
+                //=================================================
+                // Posting Lines
+                //=================================================
 
-            //=================================================
-            // Posting Lines
-            //=================================================
-
-            Lines = postingLines
-        };
-
-        //=====================================================
-        // Accounting Posting
-        //=====================================================
+                Lines =
+                    postingLines
+            };
 
         await _postingEngine.PostDocumentAsync(
             context,
@@ -196,7 +227,8 @@ public sealed class SalesPostingService : ISalesPostingService
                 "Sales Invoice not found.");
         }
 
-        var lines = sales.Lines.ToList();
+        var lines =
+            sales.Lines.ToList();
 
         if (lines.Count == 0)
         {
@@ -205,104 +237,229 @@ public sealed class SalesPostingService : ISalesPostingService
         }
 
         //=====================================================
-        // IMPORTANT
+        // Get Original Sale Stock Transactions
         //=====================================================
         //
-        // We intentionally do NOT attempt to calculate the
-        // historical inventory cost here yet.
+        // The original sale created StockTransaction records
+        // with:
         //
-        // The original cost must come from the stock transaction
-        // created when the invoice was posted.
+        // ReferenceId      = Sales.Id
+        // TransactionType = Sale
+        // UnitCost         = Historical inventory cost
         //
-        // That historical-cost lookup will be implemented in
-        // the dedicated reversal phase.
+        // We use these records instead of SalesLine.UnitPrice.
         //=====================================================
 
-        var context = new PostingContext
+        var originalTransactions =
+            await _stockTransactionRepository
+                .GetByReferenceAsync(
+                    sales.Id,
+                    StockTransactionType.Sale);
+
+        if (originalTransactions.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"Original inventory transactions were not " +
+                $"found for sales invoice '{sales.DocumentNumber}'.");
+        }
+
+        //=====================================================
+        // Build Reverse Posting Lines
+        //=====================================================
+
+        var postingLines =
+            new List<PostingLineContext>(lines.Count);
+
+        decimal totalCost = 0m;
+
+        foreach (var line in lines)
         {
             //=================================================
-            // Document
+            // Find Original Transaction
             //=================================================
 
-            DocumentId = sales.Id,
+            var originalTransaction =
+                originalTransactions.FirstOrDefault(
+                    x =>
+                        x.ProductId ==
+                            line.ProductId &&
 
-            DocumentType = DocumentType.Sales,
+                        x.WarehouseId ==
+                            sales.WarehouseId);
 
-            DocumentNumber = sales.DocumentNumber,
-
-            PostingDate = sales.DocumentDate,
-
-            FiscalYearId = sales.FiscalYearId,
-
-            CompanyId = sales.CompanyId,
-
-            BranchId = sales.BranchId,
-
-            ReferenceNumber = sales.DocumentNumber,
-
-            Description = sales.Notes,
-
-            //=================================================
-            // Sales Amounts
-            //=================================================
-
-            Amount = sales.NetTotal,
-
-            TotalBeforeDiscount =
-                sales.TotalBeforeDiscount,
-
-            DiscountAmount =
-                sales.DiscountAmount,
-
-            TaxAmount =
-                sales.TaxAmount,
+            if (originalTransaction is null)
+            {
+                throw new InvalidOperationException(
+                    $"Original inventory transaction was not " +
+                    $"found for product '{line.ProductId}' " +
+                    $"in warehouse '{sales.WarehouseId}'.");
+            }
 
             //=================================================
             // Historical Cost
             //=================================================
-            //
-            // Not available from SalesLine itself.
-            // Will be resolved from the original inventory
-            // transaction during the reversal phase.
-            //
 
-            CostAmount = 0m,
+            var historicalUnitCost =
+                originalTransaction.UnitCost;
 
-            Quantity =
-                lines.Sum(x => x.Quantity),
+            var historicalLineCost =
+                line.Quantity *
+                historicalUnitCost;
+
+            totalCost +=
+                historicalLineCost;
 
             //=================================================
-            // Lines
+            // Reverse Inventory
+            //=================================================
+            //
+            // Original Sale:
+            //
+            //     Stock -
+            //
+            // Reverse Sale:
+            //
+            //     Stock +
+            //
+            // Both use the SAME historical cost.
             //=================================================
 
-            Lines = lines
-                .Select(x =>
-                    new PostingLineContext
-                    {
-                        ProductId = x.ProductId,
+            await _inventoryService.ReverseSaleAsync(
+                productId:
+                    line.ProductId,
 
-                        WarehouseId =
-                            sales.WarehouseId,
+                warehouseId:
+                    sales.WarehouseId,
 
-                        Quantity =
-                            x.Quantity,
+                quantity:
+                    line.Quantity,
 
-                        UnitPrice =
-                            x.UnitPrice,
+                unitCost:
+                    historicalUnitCost,
 
-                        UnitCost = 0m,
+                transactionDate:
+                    sales.DocumentDate,
 
-                        BatchNumber =
-                            x.BatchNumber,
+                referenceId:
+                    sales.Id,
 
-                        ExpiryDate =
-                            x.ExpiryDate,
+                referenceNumber:
+                    sales.DocumentNumber,
 
-                        Description =
-                            x.Notes
-                    })
-                .ToList()
-        };
+                notes:
+                    line.Notes,
+
+                cancellationToken:
+                    cancellationToken);
+
+            //=================================================
+            // Reverse Posting Line
+            //=================================================
+
+            postingLines.Add(
+                new PostingLineContext
+                {
+                    ProductId =
+                        line.ProductId,
+
+                    WarehouseId =
+                        sales.WarehouseId,
+
+                    Quantity =
+                        line.Quantity,
+
+                    UnitPrice =
+                        line.UnitPrice,
+
+                    UnitCost =
+                        historicalUnitCost,
+
+                    BatchNumber =
+                        line.BatchNumber,
+
+                    ExpiryDate =
+                        line.ExpiryDate,
+
+                    Description =
+                        line.Notes
+                });
+        }
+
+        //=====================================================
+        // Reverse Posting Context
+        //=====================================================
+
+        var context =
+            new PostingContext
+            {
+                DocumentId =
+                    sales.Id,
+
+                DocumentType =
+                    DocumentType.Sales,
+
+                DocumentNumber =
+                    sales.DocumentNumber,
+
+                PostingDate =
+                    sales.DocumentDate,
+
+                FiscalYearId =
+                    sales.FiscalYearId,
+
+                CompanyId =
+                    sales.CompanyId,
+
+                BranchId =
+                    sales.BranchId,
+
+                ReferenceNumber =
+                    sales.DocumentNumber,
+
+                Description =
+                    sales.Notes,
+
+                //=================================================
+                // Original Sales Amount
+                //=================================================
+
+                Amount =
+                    sales.NetTotal,
+
+                TotalBeforeDiscount =
+                    sales.TotalBeforeDiscount,
+
+                DiscountAmount =
+                    sales.DiscountAmount,
+
+                TaxAmount =
+                    sales.TaxAmount,
+
+                //=================================================
+                // Historical Cost
+                //=================================================
+
+                CostAmount =
+                    totalCost,
+
+                //=================================================
+                // Quantity
+                //=================================================
+
+                Quantity =
+                    lines.Sum(x => x.Quantity),
+
+                //=================================================
+                // Lines
+                //=================================================
+
+                Lines =
+                    postingLines
+            };
+
+        //=====================================================
+        // Reverse Accounting Posting
+        //=====================================================
 
         await _postingEngine.ReverseDocumentAsync(
             context,
