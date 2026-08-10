@@ -1,4 +1,4 @@
-﻿using GawishERP.Domain.Common;
+﻿using GawishERP.Domain.Entities;
 
 namespace GawishERP.Domain.Common;
 
@@ -9,15 +9,28 @@ public abstract class BaseDocumentEntity : BaseEntity
     public DateTime DocumentDate { get; protected set; }
 
     public DocumentStatus Status { get; protected set; }
-        = DocumentStatus.Draft;
 
     public string? Notes { get; protected set; }
+
+    //=========================================================
+    // Multi Company
+    //=========================================================
+
+    public Guid FiscalYearId { get; protected set; }
+
+    public Guid? CompanyId { get; protected set; }
+
+    public Guid? BranchId { get; protected set; }
+
+    protected BaseDocumentEntity()
+    {
+    }
 
     public virtual void Submit()
     {
         if (Status != DocumentStatus.Draft)
             throw new InvalidOperationException(
-                "Only Draft documents can be submitted.");
+                "Only draft documents can be submitted.");
 
         Status = DocumentStatus.Submitted;
     }
@@ -26,7 +39,7 @@ public abstract class BaseDocumentEntity : BaseEntity
     {
         if (Status != DocumentStatus.Submitted)
             throw new InvalidOperationException(
-                "Only Submitted documents can be approved.");
+                "Only submitted documents can be approved.");
 
         Status = DocumentStatus.Approved;
     }
@@ -35,7 +48,7 @@ public abstract class BaseDocumentEntity : BaseEntity
     {
         if (Status != DocumentStatus.Approved)
             throw new InvalidOperationException(
-                "Only Approved documents can be posted.");
+                "Only approved documents can be posted.");
 
         Status = DocumentStatus.Posted;
     }
@@ -44,8 +57,20 @@ public abstract class BaseDocumentEntity : BaseEntity
     {
         if (Status == DocumentStatus.Posted)
             throw new InvalidOperationException(
-                "Posted document cannot be cancelled.");
+                "Posted documents cannot be cancelled.");
 
         Status = DocumentStatus.Cancelled;
+    }
+
+    public void AssignOrganization(
+        Guid fiscalYearId,
+        Guid? companyId,
+        Guid? branchId)
+    {
+        FiscalYearId = fiscalYearId;
+
+        CompanyId = companyId;
+
+        BranchId = branchId;
     }
 }

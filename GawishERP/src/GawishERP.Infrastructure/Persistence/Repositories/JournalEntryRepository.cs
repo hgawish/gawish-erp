@@ -177,6 +177,29 @@ public sealed class JournalEntryRepository : IJournalEntryRepository
         return (items, totalCount);
     }
 
+    /// <summary>
+    /// التحقق من وجود Opening Balance
+    /// لنفس السنة المالية والشركة والفرع.
+    /// يسمح النظام بمستند Opening Balance واحد فقط
+    /// لكل Fiscal Year + Company + Branch.
+    /// </summary>
+    public async Task<bool> ExistsOpeningBalanceAsync(
+        Guid fiscalYearId,
+        Guid? companyId,
+        Guid? branchId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.JournalEntryHeaders
+            .AsNoTracking()
+            .AnyAsync(
+                x =>
+                    x.DocumentType == DocumentType.OpeningBalance
+                    && x.FiscalYearId == fiscalYearId
+                    && x.CompanyId == companyId
+                    && x.BranchId == branchId,
+                cancellationToken);
+    }
+
     public IQueryable<JournalEntryHeader> GetQueryable()
     {
         return _context.JournalEntryHeaders

@@ -36,9 +36,18 @@ public sealed class AccountBalance : BaseEntity
         Guid? companyId = null,
         Guid? branchId = null)
     {
+        if (accountId == Guid.Empty)
+            throw new ArgumentException(nameof(accountId));
+
+        if (fiscalYearId == Guid.Empty)
+            throw new ArgumentException(nameof(fiscalYearId));
+
         AccountId = accountId;
+
         FiscalYearId = fiscalYearId;
+
         CompanyId = companyId;
+
         BranchId = branchId;
     }
 
@@ -46,8 +55,19 @@ public sealed class AccountBalance : BaseEntity
         decimal openingDebit,
         decimal openingCredit)
     {
-        OpeningDebit = openingDebit;
-        OpeningCredit = openingCredit;
+        if (openingDebit < 0)
+            throw new ArgumentException(nameof(openingDebit));
+
+        if (openingCredit < 0)
+            throw new ArgumentException(nameof(openingCredit));
+
+        if (openingDebit > 0 && openingCredit > 0)
+            throw new InvalidOperationException(
+                "Opening balance cannot contain both Debit and Credit.");
+
+        OpeningDebit += openingDebit;
+
+        OpeningCredit += openingCredit;
 
         Recalculate();
     }
@@ -56,7 +76,18 @@ public sealed class AccountBalance : BaseEntity
         decimal debit,
         decimal credit)
     {
+        if (debit < 0)
+            throw new ArgumentException(nameof(debit));
+
+        if (credit < 0)
+            throw new ArgumentException(nameof(credit));
+
+        if (debit > 0 && credit > 0)
+            throw new InvalidOperationException(
+                "Transaction cannot contain both Debit and Credit.");
+
         CurrentDebit += debit;
+
         CurrentCredit += credit;
 
         Recalculate();

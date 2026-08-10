@@ -36,8 +36,7 @@ public sealed class GetOpeningBalanceByIdQueryHandler
             Notes = document.Notes,
 
             // بديل IsPosted
-            IsPosted = document.Status == DocumentStatus.Posted,
-
+            Status = document.Status,
             Lines = document.Lines
                 .Select(x => new OpeningBalanceLineDetailsDto
                 {

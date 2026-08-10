@@ -1,5 +1,8 @@
 ﻿using GawishERP.Application.Common.Interfaces;
+using GawishERP.Application.Common.Interfaces.Repositories;
+using GawishERP.Application.Common.Posting;
 using GawishERP.Application.Common.Security;
+using GawishERP.Application.Features.Sales.SalesOrders;
 using GawishERP.Domain.Interfaces;
 using GawishERP.Infrastructure.Authentication;
 using GawishERP.Infrastructure.Persistence;
@@ -75,6 +78,24 @@ public static class DependencyInjection
 
         services.AddScoped<IWarehouseRepository, WarehouseRepository>();
 
+        services.AddScoped<ILedgerTransactionRepository, LedgerTransactionRepository>();
+
+        services.AddScoped<IAccountBalanceRepository, AccountBalanceRepository>();
+
+        services.AddScoped<IFinancialStatementNodeRepository, FinancialStatementNodeRepository>();
+
+        //=========================================================
+        // Sales Quotations
+        //=========================================================
+
+        services.AddScoped<ISalesQuotationRepository, SalesQuotationRepository>();
+
+        //=========================================================
+        // Sales Orders
+        //=========================================================
+
+        services.AddScoped<ISalesOrderRepository, SalesOrderRepository>();
+
         #endregion
 
         #region Domain Services
@@ -83,16 +104,47 @@ public static class DependencyInjection
 
         services.AddScoped<IDocumentNumberService, DocumentNumberService>();
 
+        services.AddScoped<IPostingEngine, PostingEngine>();
+
+        services.AddScoped<IAccountResolver, AccountResolver>();
+
+        services.AddScoped<IPurchasePostingService, PurchasePostingService>();
+
+        services.AddScoped<IPurchaseReturnPostingService, PurchaseReturnPostingService>();
+
+        services.AddScoped<ISalesPostingService, SalesPostingService>();
+
+        services.AddScoped<ISalesReturnPostingService, SalesReturnPostingService>();
+
+        services.AddScoped<ILedgerPostingService, LedgerPostingService>();
+
+        services.AddScoped<IFinancialReportingService, FinancialReportingService>();
+
+        services.AddScoped<IPostingProfileRepository, PostingProfileRepository>();
+
         #endregion
 
         #region Authentication
 
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
-        services.AddScoped<ILedgerTransactionRepository, LedgerTransactionRepository>();
 
-        services.AddScoped<IAccountBalanceRepository, AccountBalanceRepository>();
-        services.AddScoped<ILedgerPostingService, LedgerPostingService>();
-        services.AddScoped<IFinancialStatementNodeRepository,FinancialStatementNodeRepository>();
+        #endregion
+
+        #region Financial Reporting
+
+        services.AddScoped<IFinancialFormulaEvaluator, FinancialFormulaEvaluator>();
+
+        services.AddScoped<IFinancialStatementCalculator, FinancialStatementCalculator>();
+
+        #endregion
+
+        #region AutoMapper
+
+        services.AddAutoMapper(
+            _ => { },
+            typeof(SalesOrderMappingProfile).Assembly);
+        services.AddScoped<ISalesDeliveryRepository, SalesDeliveryRepository>();
+
         #endregion
 
         return services;

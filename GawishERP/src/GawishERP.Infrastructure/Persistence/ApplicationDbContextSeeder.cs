@@ -97,7 +97,8 @@ public static class ApplicationDbContextSeeder
 
         foreach (var permission in permissions)
         {
-            if (!await context.Permissions.AnyAsync(x => x.Name == permission.Name))
+            if (!await context.Permissions.AnyAsync(
+                    x => x.Name == permission.Name))
             {
                 context.Permissions.Add(permission);
             }
@@ -110,10 +111,12 @@ public static class ApplicationDbContextSeeder
     // SuperAdmin Permissions
     // ======================================================
 
-    private static async Task SeedSuperAdminRolePermissionsAsync(ApplicationDbContext context)
+    private static async Task SeedSuperAdminRolePermissionsAsync(
+        ApplicationDbContext context)
     {
         var superAdminRole =
-            await context.Roles.SingleAsync(x => x.Name == "SuperAdmin");
+            await context.Roles.SingleAsync(
+                x => x.Name == "SuperAdmin");
 
         var allPermissions =
             await context.Permissions.ToListAsync();
@@ -141,7 +144,8 @@ public static class ApplicationDbContextSeeder
     // Admin User
     // ======================================================
 
-    private static async Task SeedAdminUserAsync(ApplicationDbContext context)
+    private static async Task SeedAdminUserAsync(
+        ApplicationDbContext context)
     {
         var adminUser =
             await context.Users.SingleOrDefaultAsync(
@@ -161,7 +165,8 @@ public static class ApplicationDbContextSeeder
         }
 
         var superAdminRole =
-            await context.Roles.SingleAsync(x => x.Name == "SuperAdmin");
+            await context.Roles.SingleAsync(
+                x => x.Name == "SuperAdmin");
 
         bool hasRole =
             await context.UserRoles.AnyAsync(x =>
@@ -183,14 +188,12 @@ public static class ApplicationDbContextSeeder
     // Number Series
     // ======================================================
 
-    private static async Task SeedNumberSeriesAsync(ApplicationDbContext context)
+    private static async Task SeedNumberSeriesAsync(
+        ApplicationDbContext context)
     {
-        if (await context.NumberSeries.AnyAsync())
-            return;
+        Console.WriteLine("Checking Number Series...");
 
-        Console.WriteLine("Seeding Number Series...");
-
-        var series = new List<NumberSeries>
+        var defaultSeries = new List<NumberSeries>
         {
             new(DocumentType.OpeningBalance, "OB"),
             new(DocumentType.Purchase, "PO"),
@@ -203,10 +206,29 @@ public static class ApplicationDbContextSeeder
             new(DocumentType.StockCount, "SC")
         };
 
-        await context.NumberSeries.AddRangeAsync(series);
+        foreach (var series in defaultSeries)
+        {
+            bool exists =
+                await context.NumberSeries.AnyAsync(
+                    x => x.DocumentType == series.DocumentType);
+
+            if (!exists)
+            {
+                context.NumberSeries.Add(series);
+
+                Console.WriteLine(
+                    $"Added Number Series: {series.DocumentType}");
+            }
+            else
+            {
+                Console.WriteLine(
+                    $"Number Series already exists: {series.DocumentType}");
+            }
+        }
 
         await context.SaveChangesAsync();
 
-        Console.WriteLine("Number Series Seeded Successfully.");
+        Console.WriteLine(
+            "Number Series check completed successfully.");
     }
 }

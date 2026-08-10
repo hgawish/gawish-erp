@@ -71,21 +71,16 @@ public class StockTransaction : BaseEntity
                 nameof(transactionDate));
 
         ProductId = productId;
-
         WarehouseId = warehouseId;
-
         TransactionType = transactionType;
-
         Quantity = quantity;
-
         UnitCost = unitCost;
 
-        ReferenceNumber = referenceNumber?.Trim().ToUpperInvariant();
+        ReferenceNumber =
+            referenceNumber?.Trim().ToUpperInvariant();
 
         ReferenceId = referenceId;
-
         TransactionDate = transactionDate;
-
         Notes = notes?.Trim();
     }
 }

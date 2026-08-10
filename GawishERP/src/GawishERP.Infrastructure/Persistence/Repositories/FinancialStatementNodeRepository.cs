@@ -17,26 +17,26 @@ public sealed class FinancialStatementNodeRepository
 
     public void Add(FinancialStatementNode entity)
     {
-        _context.AccountReportCategories.Add(entity);
+        _context.FinancialStatementNodes.Add(entity);
     }
 
     public void Update(FinancialStatementNode entity)
     {
-        _context.AccountReportCategories.Update(entity);
+        _context.FinancialStatementNodes.Update(entity);
     }
 
     public void Remove(FinancialStatementNode entity)
     {
-        _context.AccountReportCategories.Remove(entity);
+        _context.FinancialStatementNodes.Remove(entity);
     }
 
     public async Task<FinancialStatementNode?> GetByIdAsync(
         Guid id,
         CancellationToken cancellationToken = default)
     {
-        return await _context.AccountReportCategories
-            .Include(x => x.Children)
+        return await _context.FinancialStatementNodes
             .Include(x => x.Parent)
+            .Include(x => x.Children)
             .FirstOrDefaultAsync(
                 x => x.Id == id,
                 cancellationToken);
@@ -46,7 +46,7 @@ public sealed class FinancialStatementNodeRepository
         string code,
         CancellationToken cancellationToken = default)
     {
-        return await _context.AccountReportCategories
+        return await _context.FinancialStatementNodes
             .FirstOrDefaultAsync(
                 x => x.Code == code,
                 cancellationToken);
@@ -56,7 +56,7 @@ public sealed class FinancialStatementNodeRepository
         string code,
         CancellationToken cancellationToken = default)
     {
-        return await _context.AccountReportCategories
+        return await _context.FinancialStatementNodes
             .AnyAsync(
                 x => x.Code == code,
                 cancellationToken);
@@ -65,7 +65,8 @@ public sealed class FinancialStatementNodeRepository
     public async Task<List<FinancialStatementNode>> GetAllAsync(
         CancellationToken cancellationToken = default)
     {
-        return await _context.AccountReportCategories
+        return await _context.FinancialStatementNodes
+            .Include(x => x.Parent)
             .Include(x => x.Children)
             .OrderBy(x => x.StatementType)
             .ThenBy(x => x.SortOrder)
@@ -75,7 +76,7 @@ public sealed class FinancialStatementNodeRepository
 
     public IQueryable<FinancialStatementNode> GetQueryable()
     {
-        return _context.AccountReportCategories
+        return _context.FinancialStatementNodes
             .Include(x => x.Parent)
             .Include(x => x.Children)
             .AsNoTracking();

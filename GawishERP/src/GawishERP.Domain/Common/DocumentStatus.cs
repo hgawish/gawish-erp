@@ -1,5 +1,8 @@
-﻿namespace GawishERP.Domain.Common;
+﻿using System.Text.Json.Serialization;
 
+namespace GawishERP.Domain.Common;
+
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum DocumentStatus
 {
     Draft = 0,

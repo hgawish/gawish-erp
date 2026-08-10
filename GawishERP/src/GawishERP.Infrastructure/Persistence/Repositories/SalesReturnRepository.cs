@@ -1,4 +1,5 @@
-﻿using GawishERP.Domain.Entities;
+﻿using GawishERP.Domain.Common;
+using GawishERP.Domain.Entities;
 using GawishERP.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -111,7 +112,8 @@ public class SalesReturnRepository : ISalesReturnRepository
                 x.DocumentDate <= toDate.Value);
         }
 
-        var totalCount = await query.CountAsync(cancellationToken);
+        var totalCount =
+            await query.CountAsync(cancellationToken);
 
         var items = await query
             .OrderByDescending(x => x.DocumentDate)
@@ -121,6 +123,24 @@ public class SalesReturnRepository : ISalesReturnRepository
             .ToListAsync(cancellationToken);
 
         return (items, totalCount);
+    }
+
+    public async Task<decimal> GetPreviouslyReturnedQuantityAsync(
+        Guid salesId,
+        Guid salesLineId,
+        Guid excludeReturnId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.SalesReturnHeaders
+            .Where(x =>
+                x.SalesId == salesId &&
+                x.Status == DocumentStatus.Posted &&
+                x.Id != excludeReturnId)
+            .SelectMany(x => x.Lines)
+            .Where(x => x.SalesLineId == salesLineId)
+            .SumAsync(
+                x => (decimal?)x.Quantity,
+                cancellationToken) ?? 0m;
     }
 
     public IQueryable<SalesReturnHeader> GetQueryable()

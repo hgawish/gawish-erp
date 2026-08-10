@@ -6,6 +6,8 @@ public sealed class FinancialStatementNode : BaseEntity
 {
     private readonly List<FinancialStatementNode> _children = new();
 
+    private readonly List<Account> _accounts = new();
+
     public string Code { get; private set; } = string.Empty;
 
     public string Name { get; private set; } = string.Empty;
@@ -34,14 +36,19 @@ public sealed class FinancialStatementNode : BaseEntity
 
     public int Level { get; private set; }
 
-    // ==========================
+    public FinancialStatementSection Section { get; private set; }
+
+    //==========================================
     // Navigation
-    // ==========================
+    //==========================================
 
     public FinancialStatementNode? Parent { get; private set; }
 
     public IReadOnlyCollection<FinancialStatementNode> Children
         => _children.AsReadOnly();
+
+    public IReadOnlyCollection<Account> Accounts
+        => _accounts.AsReadOnly();
 
     private FinancialStatementNode()
     {
@@ -72,7 +79,6 @@ public sealed class FinancialStatementNode : BaseEntity
         IsEditable = isEditable;
         ParentId = parentId;
 
-        // Default Values
         IsVisible = true;
         AllowPosting = false;
         IsHeader = false;

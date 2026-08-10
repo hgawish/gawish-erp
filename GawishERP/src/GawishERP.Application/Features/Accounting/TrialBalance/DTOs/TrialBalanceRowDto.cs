@@ -1,6 +1,6 @@
 ﻿namespace GawishERP.Application.Features.Accounting.TrialBalance.DTOs;
 
-public sealed class TrialBalanceDto
+public sealed class TrialBalanceRowDto
 {
     public Guid AccountId { get; init; }
 

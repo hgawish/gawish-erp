@@ -20,5 +20,7 @@ public enum DocumentType
 
     StockCount = 9,
 
-    JournalEntry = 10
+    JournalEntry = 10,
+
+    SalesDelivery = 11
 }

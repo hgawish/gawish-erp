@@ -1,4 +1,6 @@
 ﻿using GawishERP.Application.Common.Interfaces;
+using GawishERP.Application.Common.Inventory;
+using GawishERP.Domain.Common;
 using GawishERP.Domain.Entities;
 using GawishERP.Domain.Interfaces;
 
@@ -16,6 +18,10 @@ public class InventoryService : IInventoryService
         _stockRepository = stockRepository;
         _balanceRepository = balanceRepository;
     }
+
+    //=========================================================
+    // Opening Balance
+    //=========================================================
 
     public async Task AddOpeningBalanceAsync(
         Guid productId,
@@ -41,6 +47,10 @@ public class InventoryService : IInventoryService
             cancellationToken);
     }
 
+    //=========================================================
+    // Purchase
+    //=========================================================
+
     public async Task AddPurchaseAsync(
         Guid productId,
         Guid warehouseId,
@@ -65,7 +75,11 @@ public class InventoryService : IInventoryService
             cancellationToken);
     }
 
-    public async Task AddPurchaseReturnAsync(
+    //=========================================================
+    // Purchase Return
+    //=========================================================
+
+    public async Task<InventoryOperationResult> AddPurchaseReturnAsync(
         Guid productId,
         Guid warehouseId,
         decimal quantity,
@@ -76,12 +90,11 @@ public class InventoryService : IInventoryService
         string? notes,
         CancellationToken cancellationToken = default)
     {
-        await DecreaseStockAsync(
+        return await DecreaseStockAsync(
             StockTransactionType.PurchaseReturn,
             productId,
             warehouseId,
             quantity,
-            unitCost,
             transactionDate,
             referenceNumber,
             referenceId,
@@ -89,7 +102,11 @@ public class InventoryService : IInventoryService
             cancellationToken);
     }
 
-    public async Task ReversePurchaseAsync(
+    //=========================================================
+    // Reverse Purchase
+    //=========================================================
+
+    public async Task<InventoryOperationResult> ReversePurchaseAsync(
         Guid productId,
         Guid warehouseId,
         decimal quantity,
@@ -100,12 +117,11 @@ public class InventoryService : IInventoryService
         string? notes,
         CancellationToken cancellationToken = default)
     {
-        await DecreaseStockAsync(
+        return await DecreaseStockAsync(
             StockTransactionType.PurchaseReturn,
             productId,
             warehouseId,
             quantity,
-            unitCost,
             transactionDate,
             referenceNumber,
             referenceId,
@@ -113,7 +129,11 @@ public class InventoryService : IInventoryService
             cancellationToken);
     }
 
-    public async Task AddSaleAsync(
+    //=========================================================
+    // Sale
+    //=========================================================
+
+    public async Task<InventoryOperationResult> AddSaleAsync(
         Guid productId,
         Guid warehouseId,
         decimal quantity,
@@ -124,12 +144,11 @@ public class InventoryService : IInventoryService
         string? notes,
         CancellationToken cancellationToken = default)
     {
-        await DecreaseStockAsync(
+        return await DecreaseStockAsync(
             StockTransactionType.Sale,
             productId,
             warehouseId,
             quantity,
-            unitCost,
             transactionDate,
             referenceNumber,
             referenceId,
@@ -137,7 +156,11 @@ public class InventoryService : IInventoryService
             cancellationToken);
     }
 
-    public async Task ReverseSaleAsync(
+    //=========================================================
+    // Reverse Sale
+    //=========================================================
+
+    public async Task<InventoryOperationResult> ReverseSaleAsync(
         Guid productId,
         Guid warehouseId,
         decimal quantity,
@@ -159,13 +182,20 @@ public class InventoryService : IInventoryService
             referenceId,
             notes,
             cancellationToken);
+
+        return new InventoryOperationResult
+        {
+            Quantity = quantity,
+            UnitCost = unitCost,
+            TotalCost = quantity * unitCost
+        };
     }
 
-    // ===========================
+    //=========================================================
     // Sales Return
-    // ===========================
+    //=========================================================
 
-    public async Task AddSalesReturnAsync(
+    public async Task<InventoryOperationResult> AddSalesReturnAsync(
         Guid productId,
         Guid warehouseId,
         decimal quantity,
@@ -187,9 +217,20 @@ public class InventoryService : IInventoryService
             referenceId,
             notes,
             cancellationToken);
+
+        return new InventoryOperationResult
+        {
+            Quantity = quantity,
+            UnitCost = unitCost,
+            TotalCost = quantity * unitCost
+        };
     }
 
-    public async Task ReverseSalesReturnAsync(
+    //=========================================================
+    // Reverse Sales Return
+    //=========================================================
+
+    public async Task<InventoryOperationResult> ReverseSalesReturnAsync(
         Guid productId,
         Guid warehouseId,
         decimal quantity,
@@ -200,12 +241,11 @@ public class InventoryService : IInventoryService
         string? notes,
         CancellationToken cancellationToken = default)
     {
-        await DecreaseStockAsync(
-            StockTransactionType.SalesReturn,
+        return await DecreaseStockAsync(
+            StockTransactionType.Sale,
             productId,
             warehouseId,
             quantity,
-            unitCost,
             transactionDate,
             referenceNumber,
             referenceId,
@@ -213,7 +253,11 @@ public class InventoryService : IInventoryService
             cancellationToken);
     }
 
-    public async Task AddAdjustmentAsync(
+    //=========================================================
+    // Adjustment
+    //=========================================================
+
+    public async Task<InventoryOperationResult> AddAdjustmentAsync(
         Guid productId,
         Guid warehouseId,
         decimal quantity,
@@ -238,22 +282,30 @@ public class InventoryService : IInventoryService
                 referenceId,
                 notes,
                 cancellationToken);
+
+            return new InventoryOperationResult
+            {
+                Quantity = quantity,
+                UnitCost = unitCost,
+                TotalCost = quantity * unitCost
+            };
         }
-        else
-        {
-            await DecreaseStockAsync(
-                StockTransactionType.AdjustmentDecrease,
-                productId,
-                warehouseId,
-                quantity,
-                unitCost,
-                transactionDate,
-                referenceNumber,
-                referenceId,
-                notes,
-                cancellationToken);
-        }
+
+        return await DecreaseStockAsync(
+            StockTransactionType.AdjustmentDecrease,
+            productId,
+            warehouseId,
+            quantity,
+            transactionDate,
+            referenceNumber,
+            referenceId,
+            notes,
+            cancellationToken);
     }
+
+    //=========================================================
+    // Increase Stock
+    //=========================================================
 
     private async Task IncreaseStockAsync(
         StockTransactionType transactionType,
@@ -267,6 +319,14 @@ public class InventoryService : IInventoryService
         string? notes,
         CancellationToken cancellationToken)
     {
+        if (quantity <= 0)
+            throw new InvalidOperationException(
+                "Quantity must be greater than zero.");
+
+        if (unitCost < 0)
+            throw new InvalidOperationException(
+                "Unit cost cannot be negative.");
+
         var transaction = new StockTransaction(
             productId,
             warehouseId,
@@ -280,9 +340,10 @@ public class InventoryService : IInventoryService
 
         _stockRepository.Add(transaction);
 
-        var balance = await _balanceRepository.GetAsync(
-            productId,
-            warehouseId);
+        var balance =
+            await _balanceRepository.GetAsync(
+                productId,
+                warehouseId);
 
         if (balance is null)
         {
@@ -290,53 +351,101 @@ public class InventoryService : IInventoryService
                 productId,
                 warehouseId);
 
-            balance.Increase(quantity, unitCost);
+            balance.Increase(
+                quantity,
+                unitCost);
 
             _balanceRepository.Add(balance);
         }
         else
         {
-            balance.Increase(quantity, unitCost);
+            balance.Increase(
+                quantity,
+                unitCost);
 
             _balanceRepository.Update(balance);
         }
     }
 
-    private async Task DecreaseStockAsync(
+    //=========================================================
+    // Decrease Stock
+    //=========================================================
+
+    private async Task<InventoryOperationResult> DecreaseStockAsync(
         StockTransactionType transactionType,
         Guid productId,
         Guid warehouseId,
         decimal quantity,
-        decimal unitCost,
         DateTime transactionDate,
         string referenceNumber,
         Guid? referenceId,
         string? notes,
         CancellationToken cancellationToken)
     {
-        var balance = await _balanceRepository.GetAsync(
-            productId,
-            warehouseId);
+        if (quantity <= 0)
+            throw new InvalidOperationException(
+                "Quantity must be greater than zero.");
+
+        var balance =
+            await _balanceRepository.GetAsync(
+                productId,
+                warehouseId);
 
         if (balance is null)
             throw new InvalidOperationException(
                 "Inventory balance not found.");
 
+        if (balance.Quantity < quantity)
+        {
+            throw new InvalidOperationException(
+                $"Insufficient stock. " +
+                $"Available: {balance.Quantity}, " +
+                $"Requested: {quantity}.");
+        }
+
+        //=====================================================
+        // IMPORTANT
+        // Capture AverageCost BEFORE Decrease()
+        //=====================================================
+
+        var averageCost = balance.AverageCost;
+
+        var totalCost = quantity * averageCost;
+
+        //=====================================================
+        // Decrease Inventory Balance
+        //=====================================================
+
         balance.Decrease(quantity);
 
         _balanceRepository.Update(balance);
+
+        //=====================================================
+        // Create Stock Transaction
+        //=====================================================
 
         var transaction = new StockTransaction(
             productId,
             warehouseId,
             transactionType,
             quantity,
-            balance.AverageCost,
+            averageCost,
             referenceNumber,
             referenceId,
             transactionDate,
             notes);
 
         _stockRepository.Add(transaction);
+
+        //=====================================================
+        // Return Actual Inventory Cost
+        //=====================================================
+
+        return new InventoryOperationResult
+        {
+            Quantity = quantity,
+            UnitCost = averageCost,
+            TotalCost = totalCost
+        };
     }
 }

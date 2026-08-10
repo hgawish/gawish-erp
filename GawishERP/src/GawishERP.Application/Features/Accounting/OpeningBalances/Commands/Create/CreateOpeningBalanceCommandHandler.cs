@@ -1,5 +1,6 @@
 ﻿using GawishERP.Application.Common.Interfaces;
 using GawishERP.Application.Common.Results;
+using GawishERP.Application.Features.Accounting.OpeningBalances.DTOs;
 using GawishERP.Domain.Common;
 using GawishERP.Domain.Entities;
 using GawishERP.Domain.Interfaces;
@@ -30,6 +31,32 @@ public sealed class CreateOpeningBalanceCommandHandler
     {
         var dto = request.OpeningBalance;
 
+        //=========================================================
+        // Validate Opening Balance uniqueness
+        // One Opening Balance per:
+        // Fiscal Year + Company + Branch
+        //=========================================================
+
+        var exists =
+            await _journalEntryRepository.ExistsOpeningBalanceAsync(
+                dto.FiscalYearId,
+                dto.CompanyId,
+                dto.BranchId,
+                cancellationToken);
+
+        if (exists)
+        {
+            return Result.Failure<Guid>(
+                new Error(
+                    "OpeningBalance.AlreadyExists",
+                    "An Opening Balance already exists for this Fiscal Year, Company and Branch.",
+                    ErrorType.Conflict));
+        }
+
+        //=========================================================
+        // Generate Document Number
+        //=========================================================
+
         var documentNumber =
             await _documentNumberService.GenerateAsync(
                 DocumentType.OpeningBalance,
@@ -37,6 +64,10 @@ public sealed class CreateOpeningBalanceCommandHandler
                 dto.BranchId,
                 dto.FiscalYearId,
                 cancellationToken);
+
+        //=========================================================
+        // Create Journal Entry
+        //=========================================================
 
         var journalEntry = new JournalEntryHeader(
             documentNumber,
@@ -48,6 +79,10 @@ public sealed class CreateOpeningBalanceCommandHandler
             dto.CompanyId,
             dto.BranchId);
 
+        //=========================================================
+        // Add Lines
+        //=========================================================
+
         foreach (var line in dto.Lines)
         {
             journalEntry.AddLine(
@@ -57,9 +92,14 @@ public sealed class CreateOpeningBalanceCommandHandler
                 line.Description);
         }
 
+        //=========================================================
+        // Save
+        //=========================================================
+
         _journalEntryRepository.Add(journalEntry);
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(
+            cancellationToken);
 
         return Result.Success(journalEntry.Id);
     }

@@ -5,13 +5,6 @@ namespace GawishERP.Domain.Entities;
 public class JournalEntryHeader : BaseDocumentEntity
 {
     private readonly List<JournalEntryLine> _lines = new();
-
-    public Guid FiscalYearId { get; private set; }
-
-    public Guid? CompanyId { get; private set; }
-
-    public Guid? BranchId { get; private set; }
-
     public DocumentType DocumentType { get; private set; }
 
     public string ReferenceNumber { get; private set; } = string.Empty;

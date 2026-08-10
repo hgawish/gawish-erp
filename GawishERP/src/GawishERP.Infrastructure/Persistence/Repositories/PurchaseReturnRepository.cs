@@ -1,4 +1,5 @@
-﻿using GawishERP.Domain.Entities;
+﻿using GawishERP.Domain.Common;
+using GawishERP.Domain.Entities;
 using GawishERP.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -61,6 +62,19 @@ public class PurchaseReturnRepository : IPurchaseReturnRepository
                 .ThenInclude(x => x.Product)
             .FirstOrDefaultAsync(
                 x => x.Id == id,
+                cancellationToken);
+    }
+
+    public async Task<decimal> GetReturnedQuantityAsync(
+        Guid purchaseLineId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.PurchaseReturnLines
+            .Where(x =>
+                x.PurchaseLineId == purchaseLineId &&
+                x.PurchaseReturnHeader.Status == DocumentStatus.Posted)
+            .SumAsync(
+                x => x.Quantity,
                 cancellationToken);
     }
 

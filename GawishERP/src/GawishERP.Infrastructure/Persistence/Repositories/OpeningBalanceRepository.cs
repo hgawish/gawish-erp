@@ -5,12 +5,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GawishERP.Infrastructure.Persistence.Repositories;
 
-public class OpeningBalanceRepository
+public sealed class OpeningBalanceRepository
     : RepositoryBase<OpeningBalanceHeader>,
       IOpeningBalanceRepository
 {
-    private DbSet<OpeningBalanceHeader> OpeningBalances =>
-        Context.OpeningBalanceHeaders;
+    private DbSet<OpeningBalanceHeader> OpeningBalances
+        => Context.OpeningBalanceHeaders;
 
     public OpeningBalanceRepository(
         ApplicationDbContext context)
@@ -18,17 +18,28 @@ public class OpeningBalanceRepository
     {
     }
 
+    // =========================================================
+    // Get By Id
+    // =========================================================
+    // IMPORTANT:
+    // No AsNoTracking here because this method is also used
+    // by Submit / Approve / Post commands.
+    // =========================================================
+
     public async Task<OpeningBalanceHeader?> GetByIdAsync(
         Guid id,
         CancellationToken cancellationToken = default)
     {
         return await OpeningBalances
-            .AsNoTracking()
             .Include(x => x.Lines)
             .FirstOrDefaultAsync(
                 x => x.Id == id,
                 cancellationToken);
     }
+
+    // =========================================================
+    // Get By Document Number
+    // =========================================================
 
     public async Task<OpeningBalanceHeader?> GetByDocumentNumberAsync(
         string documentNumber,
@@ -42,6 +53,10 @@ public class OpeningBalanceRepository
                 cancellationToken);
     }
 
+    // =========================================================
+    // Exists
+    // =========================================================
+
     public async Task<bool> ExistsAsync(
         string documentNumber,
         CancellationToken cancellationToken = default)
@@ -52,6 +67,10 @@ public class OpeningBalanceRepository
                 x => x.DocumentNumber == documentNumber,
                 cancellationToken);
     }
+
+    // =========================================================
+    // Get Paged
+    // =========================================================
 
     public async Task<IReadOnlyList<OpeningBalanceHeader>> GetPagedAsync(
         int pageNumber,
@@ -66,13 +85,21 @@ public class OpeningBalanceRepository
                 .AsNoTracking()
                 .Include(x => x.Lines);
 
+        // -----------------------------------------------------
+        // Search
+        // -----------------------------------------------------
+
         if (!string.IsNullOrWhiteSpace(search))
         {
             query = query.Where(x =>
                 x.DocumentNumber.Contains(search));
         }
 
-        query = (sortBy?.ToLower()) switch
+        // -----------------------------------------------------
+        // Sorting
+        // -----------------------------------------------------
+
+        query = sortBy?.ToLower() switch
         {
             "documentnumber" => descending
                 ? query.OrderByDescending(x => x.DocumentNumber)
@@ -87,11 +114,19 @@ public class OpeningBalanceRepository
                 : query.OrderBy(x => x.DocumentDate)
         };
 
+        // -----------------------------------------------------
+        // Paging
+        // -----------------------------------------------------
+
         return await query
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
     }
+
+    // =========================================================
+    // Count
+    // =========================================================
 
     public async Task<int> CountAsync(
         string? search,
@@ -106,8 +141,13 @@ public class OpeningBalanceRepository
                 x.DocumentNumber.Contains(search));
         }
 
-        return await query.CountAsync(cancellationToken);
+        return await query.CountAsync(
+            cancellationToken);
     }
+
+    // =========================================================
+    // Add
+    // =========================================================
 
     public void Add(
         OpeningBalanceHeader document)
@@ -115,15 +155,24 @@ public class OpeningBalanceRepository
         OpeningBalances.Add(document);
     }
 
+    // =========================================================
+    // Update
+    // =========================================================
+
     public void Update(
         OpeningBalanceHeader document)
     {
         OpeningBalances.Update(document);
     }
 
+    // =========================================================
+    // Save Changes
+    // =========================================================
+
     public async Task SaveChangesAsync(
         CancellationToken cancellationToken = default)
     {
-        await Context.SaveChangesAsync(cancellationToken);
+        await Context.SaveChangesAsync(
+            cancellationToken);
     }
 }

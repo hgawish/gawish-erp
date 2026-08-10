@@ -52,5 +52,17 @@ public interface IJournalEntryRepository
         int pageSize,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// التحقق من وجود Opening Balance
+    /// لنفس السنة المالية والشركة والفرع.
+    /// يسمح النظام بمستند Opening Balance واحد فقط
+    /// لكل FiscalYear + Company + Branch.
+    /// </summary>
+    Task<bool> ExistsOpeningBalanceAsync(
+        Guid fiscalYearId,
+        Guid? companyId,
+        Guid? branchId,
+        CancellationToken cancellationToken = default);
+
     IQueryable<JournalEntryHeader> GetQueryable();
 }

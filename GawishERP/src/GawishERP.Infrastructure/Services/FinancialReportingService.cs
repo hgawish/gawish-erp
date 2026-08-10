@@ -1,12 +1,16 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using GawishERP.Application.Common.Interfaces;
+using GawishERP.Infrastructure.Persistence;
 
-namespace GawishERP.Infrastructure.Services
+namespace GawishERP.Infrastructure.Services;
+
+public sealed partial class FinancialReportingService
+    : IFinancialReportingService
 {
-    internal class FinancialReportingService
+    private readonly ApplicationDbContext _context;
+
+    public FinancialReportingService(
+        ApplicationDbContext context)
     {
+        _context = context;
     }
 }

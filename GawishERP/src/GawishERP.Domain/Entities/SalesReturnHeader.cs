@@ -34,9 +34,15 @@ public class SalesReturnHeader : BaseDocumentEntity
     public SalesReturnHeader(
         string documentNumber,
         DateTime documentDate,
+
+        Guid fiscalYearId,
+        Guid? companyId,
+        Guid? branchId,
+
         Guid salesId,
         Guid customerId,
         Guid warehouseId,
+
         string returnReason,
         string? notes)
     {
@@ -54,6 +60,10 @@ public class SalesReturnHeader : BaseDocumentEntity
 
         DocumentNumber = documentNumber;
         DocumentDate = documentDate;
+
+        FiscalYearId = fiscalYearId;
+        CompanyId = companyId;
+        BranchId = branchId;
 
         SalesId = salesId;
         CustomerId = customerId;

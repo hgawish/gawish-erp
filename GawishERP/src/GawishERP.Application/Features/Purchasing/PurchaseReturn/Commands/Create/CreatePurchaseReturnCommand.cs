@@ -5,6 +5,20 @@ namespace GawishERP.Application.Features.Purchasing.PurchaseReturn.Commands.Crea
 public sealed record CreatePurchaseReturnCommand
     : IRequest<CreatePurchaseReturnResponse>
 {
+    //=========================================================
+    // Organization
+    //=========================================================
+
+    public Guid FiscalYearId { get; init; }
+
+    public Guid? CompanyId { get; init; }
+
+    public Guid? BranchId { get; init; }
+
+    //=========================================================
+    // Document
+    //=========================================================
+
     /// <summary>
     /// ERP Document Date
     /// </summary>
@@ -23,7 +37,11 @@ public sealed record CreatePurchaseReturnCommand
 
     public string? Notes { get; init; }
 
-    public List<CreatePurchaseReturnLineDto> Lines { get; init; } = new();
+    //=========================================================
+    // Lines
+    //=========================================================
+
+    public List<CreatePurchaseReturnLineDto> Lines { get; init; } = [];
 }
 
 public sealed record CreatePurchaseReturnLineDto

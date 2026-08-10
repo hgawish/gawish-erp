@@ -1,4 +1,4 @@
-﻿using System;
+﻿using GawishERP.Application.Common.Inventory;
 
 namespace GawishERP.Application.Common.Interfaces;
 
@@ -26,7 +26,7 @@ public interface IInventoryService
         string? notes,
         CancellationToken cancellationToken = default);
 
-    Task AddPurchaseReturnAsync(
+    Task<InventoryOperationResult> AddPurchaseReturnAsync(
         Guid productId,
         Guid warehouseId,
         decimal quantity,
@@ -37,7 +37,7 @@ public interface IInventoryService
         string? notes,
         CancellationToken cancellationToken = default);
 
-    Task ReversePurchaseAsync(
+    Task<InventoryOperationResult> ReversePurchaseAsync(
         Guid productId,
         Guid warehouseId,
         decimal quantity,
@@ -48,7 +48,7 @@ public interface IInventoryService
         string? notes,
         CancellationToken cancellationToken = default);
 
-    Task AddSaleAsync(
+    Task<InventoryOperationResult> AddSaleAsync(
         Guid productId,
         Guid warehouseId,
         decimal quantity,
@@ -59,7 +59,7 @@ public interface IInventoryService
         string? notes,
         CancellationToken cancellationToken = default);
 
-    Task ReverseSaleAsync(
+    Task<InventoryOperationResult> ReverseSaleAsync(
         Guid productId,
         Guid warehouseId,
         decimal quantity,
@@ -70,8 +70,7 @@ public interface IInventoryService
         string? notes,
         CancellationToken cancellationToken = default);
 
-    // NEW
-    Task AddSalesReturnAsync(
+    Task<InventoryOperationResult> AddSalesReturnAsync(
         Guid productId,
         Guid warehouseId,
         decimal quantity,
@@ -82,8 +81,7 @@ public interface IInventoryService
         string? notes,
         CancellationToken cancellationToken = default);
 
-    // NEW
-    Task ReverseSalesReturnAsync(
+    Task<InventoryOperationResult> ReverseSalesReturnAsync(
         Guid productId,
         Guid warehouseId,
         decimal quantity,
@@ -94,7 +92,7 @@ public interface IInventoryService
         string? notes,
         CancellationToken cancellationToken = default);
 
-    Task AddAdjustmentAsync(
+    Task<InventoryOperationResult> AddAdjustmentAsync(
         Guid productId,
         Guid warehouseId,
         decimal quantity,

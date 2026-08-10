@@ -22,11 +22,16 @@ public class SalesHeader : BaseDocumentEntity
 
     public decimal NetTotal { get; private set; }
 
+    //=========================================================
+    // Navigation
+    //=========================================================
+
     public Customer Customer { get; private set; } = null!;
 
     public Warehouse Warehouse { get; private set; } = null!;
 
-    public IReadOnlyCollection<SalesLine> Lines => _lines.AsReadOnly();
+    public IReadOnlyCollection<SalesLine> Lines =>
+        _lines.AsReadOnly();
 
     private SalesHeader()
     {
@@ -35,19 +40,49 @@ public class SalesHeader : BaseDocumentEntity
     public SalesHeader(
         string documentNumber,
         DateTime documentDate,
+
+        Guid fiscalYearId,
+        Guid? companyId,
+        Guid? branchId,
+
         Guid customerId,
         Guid warehouseId,
+
         string currency,
         decimal exchangeRate,
+
         string? notes)
     {
-        DocumentNumber = documentNumber;
+        if (string.IsNullOrWhiteSpace(documentNumber))
+            throw new ArgumentException(nameof(documentNumber));
+
+        if (customerId == Guid.Empty)
+            throw new ArgumentException(nameof(customerId));
+
+        if (warehouseId == Guid.Empty)
+            throw new ArgumentException(nameof(warehouseId));
+
+        if (string.IsNullOrWhiteSpace(currency))
+            throw new ArgumentException(nameof(currency));
+
+        if (exchangeRate <= 0)
+            throw new ArgumentException(nameof(exchangeRate));
+
+        DocumentNumber = documentNumber.Trim();
+
         DocumentDate = documentDate;
 
+        AssignOrganization(
+            fiscalYearId,
+            companyId,
+            branchId);
+
         CustomerId = customerId;
+
         WarehouseId = warehouseId;
 
-        Currency = currency;
+        Currency = currency.Trim().ToUpperInvariant();
+
         ExchangeRate = exchangeRate;
 
         Notes = notes;
@@ -66,7 +101,8 @@ public class SalesHeader : BaseDocumentEntity
         string? notes)
     {
         if (Status != DocumentStatus.Draft)
-            throw new InvalidOperationException("Cannot modify posted document.");
+            throw new InvalidOperationException(
+                "Cannot modify posted document.");
 
         var line = new SalesLine(
             productId,
@@ -85,6 +121,10 @@ public class SalesHeader : BaseDocumentEntity
 
     public void RemoveLine(Guid lineId)
     {
+        if (Status != DocumentStatus.Draft)
+            throw new InvalidOperationException(
+                "Cannot modify posted document.");
+
         var line = _lines.FirstOrDefault(x => x.Id == lineId);
 
         if (line is null)
@@ -97,21 +137,32 @@ public class SalesHeader : BaseDocumentEntity
 
     private void Recalculate()
     {
-        TotalBeforeDiscount = _lines.Sum(x => x.Quantity * x.UnitPrice);
+        TotalBeforeDiscount =
+            _lines.Sum(x => x.Quantity * x.UnitPrice);
 
-        DiscountAmount = _lines.Sum(x => x.DiscountAmount);
+        DiscountAmount =
+            _lines.Sum(x => x.DiscountAmount);
 
-        TaxAmount = _lines.Sum(x => x.TaxAmount);
+        TaxAmount =
+            _lines.Sum(x => x.TaxAmount);
 
-        NetTotal = _lines.Sum(x => x.LineTotal);
+        NetTotal =
+            TotalBeforeDiscount
+            - DiscountAmount
+            + TaxAmount;
     }
 
     public override void Post()
     {
         if (!_lines.Any())
-            throw new InvalidOperationException("Document has no lines.");
+            throw new InvalidOperationException(
+                "Document has no lines.");
 
         Recalculate();
+
+        if (NetTotal <= 0)
+            throw new InvalidOperationException(
+                "Sales total must be greater than zero.");
 
         base.Post();
     }

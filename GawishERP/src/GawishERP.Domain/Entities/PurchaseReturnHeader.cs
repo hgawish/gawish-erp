@@ -16,7 +16,9 @@ public class PurchaseReturnHeader : BaseDocumentEntity
 
     public decimal TotalAmount { get; private set; }
 
+    //=========================================================
     // Navigation
+    //=========================================================
 
     public PurchaseHeader Purchase { get; private set; } = null!;
 
@@ -34,9 +36,15 @@ public class PurchaseReturnHeader : BaseDocumentEntity
     public PurchaseReturnHeader(
         string documentNumber,
         DateTime documentDate,
+
+        Guid fiscalYearId,
+        Guid? companyId,
+        Guid? branchId,
+
         Guid purchaseId,
         Guid supplierId,
         Guid warehouseId,
+
         string returnReason,
         string? notes)
     {
@@ -53,10 +61,18 @@ public class PurchaseReturnHeader : BaseDocumentEntity
             throw new ArgumentException(nameof(warehouseId));
 
         DocumentNumber = documentNumber;
+
         DocumentDate = documentDate;
 
+        AssignOrganization(
+            fiscalYearId,
+            companyId,
+            branchId);
+
         PurchaseId = purchaseId;
+
         SupplierId = supplierId;
+
         WarehouseId = warehouseId;
 
         ReturnReason = returnReason;
@@ -91,6 +107,10 @@ public class PurchaseReturnHeader : BaseDocumentEntity
 
     public void RemoveLine(Guid lineId)
     {
+        if (Status != DocumentStatus.Draft)
+            throw new InvalidOperationException(
+                "Cannot modify posted document.");
+
         var line = _lines.FirstOrDefault(x => x.Id == lineId);
 
         if (line is null)
@@ -114,6 +134,10 @@ public class PurchaseReturnHeader : BaseDocumentEntity
                 "Document has no lines.");
 
         Recalculate();
+
+        if (TotalAmount <= 0)
+            throw new InvalidOperationException(
+                "Return total must be greater than zero.");
 
         base.Post();
     }

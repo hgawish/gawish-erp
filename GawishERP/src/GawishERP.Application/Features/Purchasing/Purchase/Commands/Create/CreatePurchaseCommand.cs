@@ -5,6 +5,20 @@ namespace GawishERP.Application.Features.Purchasing.Purchase.Commands.Create;
 public sealed record CreatePurchaseCommand
     : IRequest<CreatePurchaseResponse>
 {
+    //=========================================================
+    // Organization
+    //=========================================================
+
+    public Guid FiscalYearId { get; init; }
+
+    public Guid? CompanyId { get; init; }
+
+    public Guid? BranchId { get; init; }
+
+    //=========================================================
+    // Document
+    //=========================================================
+
     /// <summary>
     /// ERP Document Date
     /// </summary>
@@ -30,7 +44,11 @@ public sealed record CreatePurchaseCommand
 
     public string? Notes { get; init; }
 
-    public List<CreatePurchaseLineDto> Lines { get; init; } = new();
+    //=========================================================
+    // Lines
+    //=========================================================
+
+    public List<CreatePurchaseLineDto> Lines { get; init; } = [];
 }
 
 public sealed record CreatePurchaseLineDto

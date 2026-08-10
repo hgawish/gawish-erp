@@ -36,11 +36,19 @@ public sealed class CreateSalesCommandHandler
         CreateSalesCommand request,
         CancellationToken cancellationToken)
     {
+        //=========================================================
+        // Validate Customer
+        //=========================================================
+
         var customer =
             await _customerRepository.GetByIdAsync(request.CustomerId);
 
         if (customer is null)
             throw new InvalidOperationException("Customer not found.");
+
+        //=========================================================
+        // Validate Warehouse
+        //=========================================================
 
         var warehouse =
             await _warehouseRepository.GetByIdAsync(request.WarehouseId);
@@ -48,19 +56,38 @@ public sealed class CreateSalesCommandHandler
         if (warehouse is null)
             throw new InvalidOperationException("Warehouse not found.");
 
+        //=========================================================
+        // Generate ERP Document Number
+        //=========================================================
+
         var documentNumber =
             await _documentNumberService.GenerateAsync(
                 DocumentType.Sales,
                 cancellationToken);
 
+        //=========================================================
+        // Create Sales Header
+        //=========================================================
+
         var sales = new SalesHeader(
             documentNumber,
             request.DocumentDate,
+
+            request.FiscalYearId,
+            request.CompanyId,
+            request.BranchId,
+
             request.CustomerId,
             request.WarehouseId,
+
             request.Currency,
             request.ExchangeRate,
+
             request.Notes);
+
+        //=========================================================
+        // Add Lines
+        //=========================================================
 
         foreach (var line in request.Lines)
         {
@@ -68,8 +95,10 @@ public sealed class CreateSalesCommandHandler
                 await _productRepository.GetByIdAsync(line.ProductId);
 
             if (product is null)
+            {
                 throw new InvalidOperationException(
                     $"Product ({line.ProductId}) not found.");
+            }
 
             sales.AddLine(
                 line.ProductId,
@@ -82,9 +111,17 @@ public sealed class CreateSalesCommandHandler
                 line.Notes);
         }
 
+        //=========================================================
+        // Save
+        //=========================================================
+
         _salesRepository.Add(sales);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        //=========================================================
+        // Response
+        //=========================================================
 
         return new CreateSalesResponse
         {

@@ -1,4 +1,5 @@
-﻿using GawishERP.Domain.Entities;
+﻿using GawishERP.Domain.Common;
+using GawishERP.Domain.Entities;
 
 namespace GawishERP.Infrastructure.Services;
 
@@ -27,9 +28,18 @@ public sealed partial class LedgerPostingService
             _accountBalanceRepository.Add(balance);
         }
 
-        balance.ApplyTransaction(
-            line.Debit,
-            line.Credit);
+        if (header.DocumentType == DocumentType.OpeningBalance)
+        {
+            balance.SetOpeningBalance(
+                line.Debit,
+                line.Credit);
+        }
+        else
+        {
+            balance.ApplyTransaction(
+                line.Debit,
+                line.Credit);
+        }
 
         _accountBalanceRepository.Update(balance);
 

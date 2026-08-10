@@ -10,7 +10,7 @@ public sealed class FinancialStatementNodeConfiguration
     public void Configure(
         EntityTypeBuilder<FinancialStatementNode> builder)
     {
-        builder.ToTable("AccountReportCategories");
+        builder.ToTable("FinancialStatementNodes");
 
         builder.HasKey(x => x.Id);
 
@@ -28,6 +28,9 @@ public sealed class FinancialStatementNodeConfiguration
         builder.Property(x => x.StatementType)
             .IsRequired();
 
+        builder.Property(x => x.Section)
+            .IsRequired();
+
         builder.Property(x => x.NormalBalance)
             .IsRequired();
 
@@ -40,12 +43,8 @@ public sealed class FinancialStatementNodeConfiguration
         builder.Property(x => x.IsEditable)
             .IsRequired();
 
-        builder.HasOne(x => x.Parent)
-            .WithMany(x => x.Children)
-            .HasForeignKey(x => x.ParentId)
-            .OnDelete(DeleteBehavior.Restrict);
         builder.Property(x => x.Formula)
-    .HasMaxLength(500);
+            .HasMaxLength(500);
 
         builder.Property(x => x.IsHeader)
             .IsRequired();
@@ -62,7 +61,13 @@ public sealed class FinancialStatementNodeConfiguration
         builder.Property(x => x.Level)
             .IsRequired();
 
-        builder.Property(x => x.SortOrder)
-            .IsRequired();
+        // ==========================================
+        // Parent Financial Statement Node
+        // ==========================================
+
+        builder.HasOne(x => x.Parent)
+            .WithMany(x => x.Children)
+            .HasForeignKey(x => x.ParentId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

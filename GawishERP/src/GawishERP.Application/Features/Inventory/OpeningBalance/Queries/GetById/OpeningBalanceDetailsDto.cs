@@ -1,4 +1,6 @@
-﻿namespace GawishERP.Application.Features.Inventory.OpeningBalance.Queries.GetById;
+﻿using GawishERP.Domain.Common;
+
+namespace GawishERP.Application.Features.Inventory.OpeningBalance.Queries.GetById;
 
 public sealed class OpeningBalanceDetailsDto
 {
@@ -12,7 +14,7 @@ public sealed class OpeningBalanceDetailsDto
 
     public string? Notes { get; init; }
 
-    public bool IsPosted { get; init; }
+    public DocumentStatus Status { get; init; }
 
     public List<OpeningBalanceLineDetailsDto> Lines { get; init; }
         = new();

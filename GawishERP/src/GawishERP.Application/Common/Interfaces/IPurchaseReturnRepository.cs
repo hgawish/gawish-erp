@@ -20,5 +20,9 @@ public interface IPurchaseReturnRepository
         Guid id,
         CancellationToken cancellationToken = default);
 
+    Task<decimal> GetReturnedQuantityAsync(
+        Guid purchaseLineId,
+        CancellationToken cancellationToken = default);
+
     IQueryable<PurchaseReturnHeader> GetQueryable();
 }

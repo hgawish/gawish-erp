@@ -4,11 +4,10 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace GawishERP.Infrastructure.Persistence.Configurations;
 
-public class AccountConfiguration
+public sealed class AccountConfiguration
     : IEntityTypeConfiguration<Account>
 {
-    public void Configure(
-        EntityTypeBuilder<Account> builder)
+    public void Configure(EntityTypeBuilder<Account> builder)
     {
         builder.ToTable("Accounts");
 
@@ -37,9 +36,40 @@ public class AccountConfiguration
         builder.Property(x => x.IsActive)
             .IsRequired();
 
+        // ==========================================
+        // Cash / Bank Flag
+        // ==========================================
+
+        builder.Property(x => x.IsCashAccount)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        // ==========================================
+        // Parent Account
+        // ==========================================
+
         builder.HasOne(x => x.ParentAccount)
             .WithMany(x => x.Children)
             .HasForeignKey(x => x.ParentAccountId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // ==========================================
+        // Financial Statement Node
+        // ==========================================
+
+        builder.HasOne(x => x.FinancialStatementNode)
+            .WithMany(x => x.Accounts)
+            .HasForeignKey(x => x.FinancialStatementNodeId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // ==========================================
+        // Indexes
+        // ==========================================
+
+        builder.HasIndex(x => x.ParentAccountId);
+
+        builder.HasIndex(x => x.FinancialStatementNodeId);
+
+        builder.HasIndex(x => x.IsCashAccount);
     }
 }

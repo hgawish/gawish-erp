@@ -27,23 +27,37 @@ public sealed class CreatePurchaseReturnCommandHandler
         CreatePurchaseReturnCommand request,
         CancellationToken cancellationToken)
     {
+        //=========================================================
         // Generate ERP Document Number
+        //=========================================================
+
         var documentNumber =
             await _documentNumberService.GenerateAsync(
                 DocumentType.PurchaseReturn,
                 cancellationToken);
 
+        //=========================================================
         // Create Header
+        //=========================================================
+
         var purchaseReturn = new PurchaseReturnHeader(
             documentNumber,
             request.DocumentDate,
+
+            request.FiscalYearId,
+            request.CompanyId,
+            request.BranchId,
+
             request.PurchaseId,
             request.SupplierId,
             request.WarehouseId,
             request.ReturnReason,
             request.Notes);
 
+        //=========================================================
         // Add Lines
+        //=========================================================
+
         foreach (var line in request.Lines)
         {
             purchaseReturn.AddLine(
@@ -54,10 +68,17 @@ public sealed class CreatePurchaseReturnCommandHandler
                 line.Notes);
         }
 
-        // Save Draft
+        //=========================================================
+        // Save
+        //=========================================================
+
         _purchaseReturnRepository.Add(purchaseReturn);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        //=========================================================
+        // Response
+        //=========================================================
 
         return new CreatePurchaseReturnResponse
         {

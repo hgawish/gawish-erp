@@ -7,29 +7,27 @@ using MediatR;
 namespace GawishERP.Application.Features.Accounting.OpeningBalances.Commands.Post;
 
 public sealed class PostOpeningBalanceCommandHandler
-    : IRequestHandler<PostOpeningBalanceCommand, Result>
+    : IRequestHandler<PostOpeningBalanceCommand, Result<Guid>>
 {
     private readonly IJournalEntryRepository _journalEntryRepository;
-    private readonly ILedgerTransactionRepository _ledgerTransactionRepository;
-    private readonly ILedgerPostingService _ledgerPostingService;
     private readonly IUnitOfWork _unitOfWork;
 
     public PostOpeningBalanceCommandHandler(
         IJournalEntryRepository journalEntryRepository,
-        ILedgerTransactionRepository ledgerTransactionRepository,
-        ILedgerPostingService ledgerPostingService,
         IUnitOfWork unitOfWork)
     {
         _journalEntryRepository = journalEntryRepository;
-        _ledgerTransactionRepository = ledgerTransactionRepository;
-        _ledgerPostingService = ledgerPostingService;
         _unitOfWork = unitOfWork;
     }
 
-    public async Task<Result> Handle(
+    public async Task<Result<Guid>> Handle(
         PostOpeningBalanceCommand request,
         CancellationToken cancellationToken)
     {
+        //=========================================================
+        // Load Journal Entry WITH Lines
+        //=========================================================
+
         var journalEntry =
             await _journalEntryRepository.GetByIdWithLinesAsync(
                 request.Id,
@@ -37,38 +35,75 @@ public sealed class PostOpeningBalanceCommandHandler
 
         if (journalEntry is null)
         {
-            return Result.Failure(
+            return Result.Failure<Guid>(
                 new Error(
                     "OpeningBalance.NotFound",
-                    "Opening Balance not found.",
+                    "Opening Balance journal entry was not found.",
                     ErrorType.NotFound));
         }
 
-        var alreadyPosted =
-            await _ledgerTransactionRepository
-                .ExistsForJournalEntryAsync(
-                    journalEntry.Id,
-                    cancellationToken);
+        //=========================================================
+        // Continue Workflow According To Current Status
+        //=========================================================
 
-        if (alreadyPosted)
+        switch (journalEntry.Status)
         {
-            return Result.Failure(
-                new Error(
-                    "OpeningBalance.AlreadyPosted",
-                    "Opening Balance has already been posted.",
-                    ErrorType.Conflict));
+            case DocumentStatus.Draft:
+
+                // Draft → Submitted
+                journalEntry.Submit();
+
+                // Submitted → Approved
+                journalEntry.Approve();
+
+                // Approved → Posted
+                journalEntry.Post();
+
+                break;
+
+            case DocumentStatus.Submitted:
+
+                // Submitted → Approved
+                journalEntry.Approve();
+
+                // Approved → Posted
+                journalEntry.Post();
+
+                break;
+
+            case DocumentStatus.Approved:
+
+                // Approved → Posted
+                journalEntry.Post();
+
+                break;
+
+            case DocumentStatus.Posted:
+
+                return Result.Failure<Guid>(
+                    new Error(
+                        "OpeningBalance.AlreadyPosted",
+                        "Opening Balance is already posted.",
+                        ErrorType.Conflict));
+
+            default:
+
+                return Result.Failure<Guid>(
+                    new Error(
+                        "OpeningBalance.InvalidStatus",
+                        $"Opening Balance cannot be posted from status '{journalEntry.Status}'.",
+                        ErrorType.Validation));
         }
 
-        journalEntry.Post();
-
-        await _ledgerPostingService.PostAsync(
-            journalEntry,
-            cancellationToken);
+        //=========================================================
+        // Save
+        //=========================================================
 
         _journalEntryRepository.Update(journalEntry);
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(
+            cancellationToken);
 
-        return Result.Success();
+        return Result.Success(journalEntry.Id);
     }
 }

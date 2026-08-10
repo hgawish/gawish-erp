@@ -21,7 +21,11 @@
 		<Folder Include="Features\Accounting\JournalEntries\Mapping\" />
 		<Folder Include="Features\Accounting\JournalEntries\Validators\" />
 		<Folder Include="Features\Accounting\OpeningBalances\Validators\" />
+		<Folder Include="Features\Dashboard\DTOs\" />
+		<Folder Include="Features\Dashboard\Queries\" />
 		<Folder Include="Features\FiscalYears\Validators\" />
+		<Folder Include="Features\PeriodClosing\Commands\" />
+		<Folder Include="Features\PeriodClosing\DTOs\" />
 		<Folder Include="Features\Purchasing\Purchase\Commands\Delete\" />
 		<Folder Include="Features\Purchasing\Purchase\Commands\Update\" />
 		<Folder Include="Features\Suppliers\Validators\" />
@@ -32,8 +36,9 @@
 	<ItemGroup>
 		<PackageReference Include="BCrypt.Net-Next" Version="4.2.0" />
 		<PackageReference Include="FluentValidation" Version="12.1.1" />
+		<PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
 		<PackageReference Include="MediatR" Version="14.2.0" />
-		<PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.0.0" />
+		<PackageReference Include="AutoMapper" Version="16.2.0" />
 	</ItemGroup>
 
 </Project>

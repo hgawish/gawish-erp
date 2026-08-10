@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using GawishERP.Infrastructure.Persistence.Seed;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -196,9 +197,13 @@ using (var scope = app.Services.CreateScope())
         scope.ServiceProvider
             .GetRequiredService<ApplicationDbContext>();
 
+    // Seed Default Data
     await ApplicationDbContextSeeder.SeedAsync(context);
+    await AccountSeeder.SeedAsync(context);
+    // Seed Financial Statement Tree
+    await FinancialStatementSeeder.SeedAsync(context);
+   
 }
-
 // ===========================================
 // Endpoints
 // ===========================================

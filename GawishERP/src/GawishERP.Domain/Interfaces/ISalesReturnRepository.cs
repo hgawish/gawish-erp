@@ -30,5 +30,11 @@ public interface ISalesReturnRepository
         int pageSize,
         CancellationToken cancellationToken = default);
 
+    Task<decimal> GetPreviouslyReturnedQuantityAsync(
+        Guid salesId,
+        Guid salesLineId,
+        Guid excludeReturnId,
+        CancellationToken cancellationToken = default);
+
     IQueryable<SalesReturnHeader> GetQueryable();
 }

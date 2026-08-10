@@ -2,7 +2,7 @@
 
 namespace GawishERP.Domain.Entities;
 
-public class Account : BaseEntity
+public sealed class Account : BaseEntity
 {
     private readonly List<Account> _children = new();
 
@@ -20,12 +20,20 @@ public class Account : BaseEntity
 
     public bool IsActive { get; private set; }
 
+    // NEW
+    public bool IsCashAccount { get; private set; }
+
+    // NEW
+    public Guid? FinancialStatementNodeId { get; private set; }
+
     // Navigation
 
     public Account? ParentAccount { get; private set; }
 
-    public IReadOnlyCollection<Account> Children =>
-        _children.AsReadOnly();
+    public IReadOnlyCollection<Account> Children
+        => _children.AsReadOnly();
+
+    public FinancialStatementNode? FinancialStatementNode { get; private set; }
 
     private Account()
     {
@@ -37,7 +45,9 @@ public class Account : BaseEntity
         AccountType accountType,
         AccountNature nature,
         bool isPostingAccount,
-        Guid? parentAccountId = null)
+        Guid? parentAccountId = null,
+        Guid? financialStatementNodeId = null,
+        bool isCashAccount = false)
     {
         if (string.IsNullOrWhiteSpace(code))
             throw new ArgumentException(nameof(code));
@@ -46,16 +56,13 @@ public class Account : BaseEntity
             throw new ArgumentException(nameof(name));
 
         Code = code;
-
         Name = name;
-
         AccountType = accountType;
-
         Nature = nature;
-
         IsPostingAccount = isPostingAccount;
-
         ParentAccountId = parentAccountId;
+        FinancialStatementNodeId = financialStatementNodeId;
+        IsCashAccount = isCashAccount;
 
         IsActive = true;
     }
@@ -63,16 +70,28 @@ public class Account : BaseEntity
     public void Update(
         string name,
         bool isPostingAccount,
-        Guid? parentAccountId)
+        Guid? parentAccountId,
+        Guid? financialStatementNodeId,
+        bool isCashAccount)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException(nameof(name));
 
         Name = name;
-
         IsPostingAccount = isPostingAccount;
-
         ParentAccountId = parentAccountId;
+        FinancialStatementNodeId = financialStatementNodeId;
+        IsCashAccount = isCashAccount;
+    }
+
+    public void AssignFinancialStatementNode(Guid? nodeId)
+    {
+        FinancialStatementNodeId = nodeId;
+    }
+
+    public void SetCashAccount(bool value)
+    {
+        IsCashAccount = value;
     }
 
     public void Activate()

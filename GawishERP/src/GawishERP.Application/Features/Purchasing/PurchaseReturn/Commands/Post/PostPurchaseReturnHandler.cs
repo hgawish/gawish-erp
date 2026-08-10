@@ -73,9 +73,19 @@ public sealed class PostPurchaseReturnHandler
                 throw new InvalidOperationException(
                     "Original Purchase Line not found.");
 
-            if (returnLine.Quantity > purchaseLine.Quantity)
+            var previouslyReturnedQuantity =
+                await _purchaseReturnRepository.GetReturnedQuantityAsync(
+                    returnLine.PurchaseLineId,
+                    cancellationToken);
+
+            var totalReturnedQuantity =
+                previouslyReturnedQuantity + returnLine.Quantity;
+
+            if (totalReturnedQuantity > purchaseLine.Quantity)
+            {
                 throw new InvalidOperationException(
-                    $"Returned quantity exceeds purchased quantity for product {purchaseLine.ProductId}.");
+                    $"Total returned quantity ({totalReturnedQuantity}) exceeds purchased quantity ({purchaseLine.Quantity}) for product {purchaseLine.ProductId}.");
+            }
         }
 
         // ===========================================

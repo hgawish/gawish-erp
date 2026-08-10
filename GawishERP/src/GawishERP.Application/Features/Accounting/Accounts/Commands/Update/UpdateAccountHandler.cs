@@ -61,9 +61,11 @@ public sealed class UpdateAccountHandler
         }
 
         account.Update(
-            request.Name,
-            request.IsPostingAccount,
-            request.ParentAccountId);
+    request.Name,
+    request.IsPostingAccount,
+    request.ParentAccountId,
+    request.FinancialStatementNodeId,
+    request.IsCashAccount);
 
         _accountRepository.Update(account);
 

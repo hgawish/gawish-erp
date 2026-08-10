@@ -9,15 +9,25 @@ namespace GawishERP.Infrastructure.Persistence.Repositories;
 public sealed class NumberSeriesRepository
     : RepositoryBase<NumberSeries>, INumberSeriesRepository
 {
-    public NumberSeriesRepository(ApplicationDbContext context)
+    public NumberSeriesRepository(
+        ApplicationDbContext context)
         : base(context)
     {
     }
 
-    public async Task<NumberSeries?> GetByIdAsync(Guid id)
+    // =========================================================
+    // Get By Id
+    // =========================================================
+
+    public async Task<NumberSeries?> GetByIdAsync(
+        Guid id)
     {
         return await GetEntityByIdAsync(id);
     }
+
+    // =========================================================
+    // Get By Document Type
+    // =========================================================
 
     public async Task<NumberSeries?> GetByDocumentTypeAsync(
         DocumentType documentType,
@@ -25,23 +35,57 @@ public sealed class NumberSeriesRepository
         Guid? branchId = null,
         Guid? fiscalYearId = null)
     {
+        // -----------------------------------------------------
+        // 1. البحث عن Series مخصصة
+        // Company + Branch + Fiscal Year
+        // -----------------------------------------------------
+
+        var specificSeries =
+            await Context.NumberSeries
+                .FirstOrDefaultAsync(x =>
+                    x.DocumentType == documentType &&
+                    x.CompanyId == companyId &&
+                    x.BranchId == branchId &&
+                    x.FiscalYearId == fiscalYearId &&
+                    x.IsActive);
+
+        if (specificSeries is not null)
+        {
+            return specificSeries;
+        }
+
+        // -----------------------------------------------------
+        // 2. البحث عن Default / Global Series
+        //
+        // CompanyId   = null
+        // BranchId    = null
+        // FiscalYearId = null
+        // -----------------------------------------------------
+
         return await Context.NumberSeries
             .FirstOrDefaultAsync(x =>
                 x.DocumentType == documentType &&
-                x.CompanyId == companyId &&
-                x.BranchId == branchId &&
-                x.FiscalYearId == fiscalYearId &&
+                x.CompanyId == null &&
+                x.BranchId == null &&
+                x.FiscalYearId == null &&
                 x.IsActive);
     }
 
-    public async Task<(List<NumberSeries> Items, int TotalCount)> GetAllAsync(
+    // =========================================================
+    // Get All
+    // =========================================================
+
+    public async Task<(
+        List<NumberSeries> Items,
+        int TotalCount)> GetAllAsync(
         string? search,
         bool? isActive,
         DocumentType? documentType,
         int pageNumber,
         int pageSize)
     {
-        IQueryable<NumberSeries> query = GetQueryable();
+        IQueryable<NumberSeries> query =
+            GetQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -63,45 +107,79 @@ public sealed class NumberSeriesRepository
                 x.DocumentType == documentType.Value);
         }
 
-        query = query.OrderBy(x => x.DocumentType);
+        query = query
+            .OrderBy(x => x.DocumentType);
 
-        var totalCount = await query.CountAsync();
+        var totalCount =
+            await query.CountAsync();
 
-        var items = await query
-            .Skip((pageNumber - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
+        var items =
+            await query
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
 
         return (items, totalCount);
     }
 
-    public async Task<bool> ExistsAsync(Guid id)
+    // =========================================================
+    // Exists
+    // =========================================================
+
+    public async Task<bool> ExistsAsync(
+        Guid id)
     {
         return await Context.NumberSeries
             .AnyAsync(x => x.Id == id);
     }
 
-    public void Add(NumberSeries numberSeries)
+    // =========================================================
+    // Add
+    // =========================================================
+
+    public void Add(
+        NumberSeries numberSeries)
     {
         Context.NumberSeries.Add(numberSeries);
     }
 
-    public void Update(NumberSeries numberSeries)
+    // =========================================================
+    // Update
+    // =========================================================
+
+    public void Update(
+        NumberSeries numberSeries)
     {
         UpdateEntity(numberSeries);
     }
 
-    public void Activate(NumberSeries numberSeries)
+    // =========================================================
+    // Activate
+    // =========================================================
+
+    public void Activate(
+        NumberSeries numberSeries)
     {
         numberSeries.Activate();
+
         UpdateEntity(numberSeries);
     }
 
-    public void Deactivate(NumberSeries numberSeries)
+    // =========================================================
+    // Deactivate
+    // =========================================================
+
+    public void Deactivate(
+        NumberSeries numberSeries)
     {
         numberSeries.Deactivate();
+
         UpdateEntity(numberSeries);
     }
+
+    // =========================================================
+    // Get Next Number
+    // =========================================================
 
     /// <summary>
     /// Generates the next document number.
@@ -113,11 +191,12 @@ public sealed class NumberSeriesRepository
         Guid? branchId = null,
         Guid? fiscalYearId = null)
     {
-        var series = await GetByDocumentTypeAsync(
-            documentType,
-            companyId,
-            branchId,
-            fiscalYearId);
+        var series =
+            await GetByDocumentTypeAsync(
+                documentType,
+                companyId,
+                branchId,
+                fiscalYearId);
 
         if (series is null)
         {
@@ -125,7 +204,8 @@ public sealed class NumberSeriesRepository
                 $"Number Series not found for document type '{documentType}'.");
         }
 
-        var nextNumber = series.GenerateNextNumber();
+        var nextNumber =
+            series.GenerateNextNumber();
 
         UpdateEntity(series);
 

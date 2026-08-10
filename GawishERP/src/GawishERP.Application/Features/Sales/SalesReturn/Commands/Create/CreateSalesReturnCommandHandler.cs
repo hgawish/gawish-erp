@@ -1,4 +1,5 @@
 ﻿using GawishERP.Application.Common.Interfaces;
+using GawishERP.Domain.Common;
 using GawishERP.Domain.Entities;
 using GawishERP.Domain.Interfaces;
 using MediatR;
@@ -60,12 +61,17 @@ public sealed class CreateSalesReturnCommandHandler
 
         var documentNumber =
             await _documentNumberService.GenerateAsync(
-                Domain.Common.DocumentType.SalesReturn,
+                DocumentType.SalesReturn,
                 cancellationToken);
 
         var salesReturn = new SalesReturnHeader(
             documentNumber,
             request.DocumentDate,
+
+            request.FiscalYearId,
+            request.CompanyId,
+            request.BranchId,
+
             request.SalesId,
             request.CustomerId,
             request.WarehouseId,
@@ -78,7 +84,8 @@ public sealed class CreateSalesReturnCommandHandler
                 await _productRepository.GetByIdAsync(line.ProductId);
 
             if (product is null)
-                throw new InvalidOperationException("Product not found.");
+                throw new InvalidOperationException(
+                    $"Product ({line.ProductId}) not found.");
 
             salesReturn.AddLine(
                 line.SalesLineId,

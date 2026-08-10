@@ -27,25 +27,42 @@ public sealed class CreatePurchaseCommandHandler
         CreatePurchaseCommand request,
         CancellationToken cancellationToken)
     {
+        //=========================================================
         // Generate Document Number
+        //=========================================================
+
         var documentNumber =
             await _documentNumberService.GenerateAsync(
                 DocumentType.Purchase,
                 cancellationToken);
 
+        //=========================================================
         // Create Purchase Header
+        //=========================================================
+
         var purchase = new PurchaseHeader(
             documentNumber,
             request.DocumentDate,
+
+            request.FiscalYearId,
+            request.CompanyId,
+            request.BranchId,
+
             request.InvoiceNumber,
             request.InvoiceDate,
+
             request.SupplierId,
             request.WarehouseId,
+
             request.Currency,
             request.ExchangeRate,
+
             request.Notes);
 
-        // Add Lines
+        //=========================================================
+        // Lines
+        //=========================================================
+
         foreach (var line in request.Lines)
         {
             purchase.AddLine(
@@ -59,12 +76,18 @@ public sealed class CreatePurchaseCommandHandler
                 line.Notes);
         }
 
-        // Save Draft Purchase
+        //=========================================================
+        // Save
+        //=========================================================
+
         _purchaseRepository.Add(purchase);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        // Return Result
+        //=========================================================
+        // Response
+        //=========================================================
+
         return new CreatePurchaseResponse
         {
             Id = purchase.Id,
