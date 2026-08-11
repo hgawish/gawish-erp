@@ -1,6 +1,8 @@
-﻿using GawishERP.Application.Features.Sales.Sales.Commands.Cancel;
+﻿using GawishERP.Application.Features.Sales.Sales.Commands.Approve;
+using GawishERP.Application.Features.Sales.Sales.Commands.Cancel;
 using GawishERP.Application.Features.Sales.Sales.Commands.Create;
 using GawishERP.Application.Features.Sales.Sales.Commands.Post;
+using GawishERP.Application.Features.Sales.Sales.Commands.Submit;
 using GawishERP.Application.Features.Sales.Sales.Queries.GetById;
 using GawishERP.Application.Features.Sales.Sales.Queries.GetList;
 using MediatR;
@@ -63,6 +65,42 @@ public sealed class SalesController : ControllerBase
         var result = await _mediator.Send(
             query,
             cancellationToken);
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Submit Sales Invoice
+    /// </summary>
+    [HttpPost("{id:guid}/submit")]
+    public async Task<IActionResult> Submit(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(
+            new SubmitSalesCommand(id),
+            cancellationToken);
+
+        if (result.IsFailure)
+            return BadRequest(result.Error);
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Approve Sales Invoice
+    /// </summary>
+    [HttpPost("{id:guid}/approve")]
+    public async Task<IActionResult> Approve(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(
+            new ApproveSalesCommand(id),
+            cancellationToken);
+
+        if (result.IsFailure)
+            return BadRequest(result.Error);
 
         return Ok(result);
     }
