@@ -139,7 +139,7 @@ public class PurchaseReturnHeader : BaseDocumentEntity
             throw new InvalidOperationException(
                 "Return total must be greater than zero.");
 
-        base.Post();
+        Status = DocumentStatus.Posted;
     }
 
     public override void Cancel()
