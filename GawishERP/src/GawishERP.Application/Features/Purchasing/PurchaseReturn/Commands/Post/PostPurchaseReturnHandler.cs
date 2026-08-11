@@ -10,18 +10,18 @@ public sealed class PostPurchaseReturnHandler
 {
     private readonly IPurchaseReturnRepository _purchaseReturnRepository;
     private readonly IPurchaseRepository _purchaseRepository;
-    private readonly IInventoryService _inventoryService;
+    private readonly IPurchaseReturnPostingService _purchaseReturnPostingService;
     private readonly IUnitOfWork _unitOfWork;
 
     public PostPurchaseReturnHandler(
         IPurchaseReturnRepository purchaseReturnRepository,
         IPurchaseRepository purchaseRepository,
-        IInventoryService inventoryService,
+        IPurchaseReturnPostingService purchaseReturnPostingService,
         IUnitOfWork unitOfWork)
     {
         _purchaseReturnRepository = purchaseReturnRepository;
         _purchaseRepository = purchaseRepository;
-        _inventoryService = inventoryService;
+        _purchaseReturnPostingService = purchaseReturnPostingService;
         _unitOfWork = unitOfWork;
     }
 
@@ -59,9 +59,9 @@ public sealed class PostPurchaseReturnHandler
             throw new InvalidOperationException(
                 "Original Purchase must be posted.");
 
-        // ===========================================
+        //=========================================================
         // Quantity Validation
-        // ===========================================
+        //=========================================================
 
         foreach (var returnLine in purchaseReturn.Lines)
         {
@@ -84,33 +84,34 @@ public sealed class PostPurchaseReturnHandler
             if (totalReturnedQuantity > purchaseLine.Quantity)
             {
                 throw new InvalidOperationException(
-                    $"Total returned quantity ({totalReturnedQuantity}) exceeds purchased quantity ({purchaseLine.Quantity}) for product {purchaseLine.ProductId}.");
+                    $"Total returned quantity ({totalReturnedQuantity}) " +
+                    $"exceeds purchased quantity ({purchaseLine.Quantity}) " +
+                    $"for product {purchaseLine.ProductId}.");
             }
         }
 
-        // ===========================================
-        // Inventory
-        // ===========================================
+        //=========================================================
+        // Change document status
+        //=========================================================
 
         purchaseReturn.Post();
 
-        foreach (var line in purchaseReturn.Lines)
-        {
-            await _inventoryService.AddPurchaseReturnAsync(
-                line.ProductId,
-                purchaseReturn.WarehouseId,
-                line.Quantity,
-                line.UnitCost,
-                purchaseReturn.DocumentDate,
-                purchaseReturn.Id,
-                purchaseReturn.DocumentNumber,
-                purchaseReturn.Notes,
-                cancellationToken);
-        }
+        //=========================================================
+        // Inventory + Accounting Posting
+        //=========================================================
+
+        await _purchaseReturnPostingService.PostPurchaseReturnAsync(
+            purchaseReturn,
+            cancellationToken);
+
+        //=========================================================
+        // Persist Purchase Return
+        //=========================================================
 
         _purchaseReturnRepository.Update(purchaseReturn);
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(
+            cancellationToken);
 
         return new PostPurchaseReturnResponse
         {

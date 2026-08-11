@@ -9,16 +9,16 @@ public sealed class PostPurchaseCommandHandler
     : IRequestHandler<PostPurchaseCommand, PostPurchaseResponse>
 {
     private readonly IPurchaseRepository _purchaseRepository;
-    private readonly IInventoryService _inventoryService;
+    private readonly IPurchasePostingService _purchasePostingService;
     private readonly IUnitOfWork _unitOfWork;
 
     public PostPurchaseCommandHandler(
         IPurchaseRepository purchaseRepository,
-        IInventoryService inventoryService,
+        IPurchasePostingService purchasePostingService,
         IUnitOfWork unitOfWork)
     {
         _purchaseRepository = purchaseRepository;
-        _inventoryService = inventoryService;
+        _purchasePostingService = purchasePostingService;
         _unitOfWork = unitOfWork;
     }
 
@@ -43,27 +43,28 @@ public sealed class PostPurchaseCommandHandler
             throw new InvalidOperationException(
                 "Cancelled purchase cannot be posted.");
 
+        //=========================================================
         // Change document status
+        //=========================================================
+
         purchase.Post();
 
-        // Update Inventory
-        foreach (var line in purchase.Lines)
-        {
-            await _inventoryService.AddPurchaseAsync(
-    line.ProductId,
-    purchase.WarehouseId,
-    line.Quantity,
-    line.UnitCost,
-    purchase.DocumentDate,
-    purchase.Id,
-    purchase.DocumentNumber,
-    purchase.Notes,
-    cancellationToken);
-        }
+        //=========================================================
+        // Inventory + Accounting Posting
+        //=========================================================
+
+        await _purchasePostingService.PostPurchaseInvoiceAsync(
+            purchase,
+            cancellationToken);
+
+        //=========================================================
+        // Persist Purchase
+        //=========================================================
 
         _purchaseRepository.Update(purchase);
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(
+            cancellationToken);
 
         return new PostPurchaseResponse
         {
