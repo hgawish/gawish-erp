@@ -16,17 +16,19 @@ public static class ApplicationDbContextSeeder
         await SeedPermissionsAsync(context);
 
         await SeedSuperAdminRolePermissionsAsync(context);
-
         await SeedAdminUserAsync(context);
 
         await SeedNumberSeriesAsync(context);
+
+        await SeedPostingProfilesAsync(context);
     }
 
     // ======================================================
     // Roles
     // ======================================================
 
-    private static async Task SeedRolesAsync(ApplicationDbContext context)
+    private static async Task SeedRolesAsync(
+        ApplicationDbContext context)
     {
         var roles = new List<Role>
         {
@@ -39,7 +41,8 @@ public static class ApplicationDbContextSeeder
 
         foreach (var role in roles)
         {
-            if (!await context.Roles.AnyAsync(x => x.Name == role.Name))
+            if (!await context.Roles.AnyAsync(
+                    x => x.Name == role.Name))
             {
                 context.Roles.Add(role);
             }
@@ -52,7 +55,8 @@ public static class ApplicationDbContextSeeder
     // Permissions
     // ======================================================
 
-    private static async Task SeedPermissionsAsync(ApplicationDbContext context)
+    private static async Task SeedPermissionsAsync(
+        ApplicationDbContext context)
     {
         var permissions = new List<Permission>
         {
@@ -230,5 +234,196 @@ public static class ApplicationDbContextSeeder
 
         Console.WriteLine(
             "Number Series check completed successfully.");
+    }
+
+    // ======================================================
+    // Posting Profiles
+    // ======================================================
+
+    private static async Task SeedPostingProfilesAsync(
+        ApplicationDbContext context)
+    {
+        Console.WriteLine("Checking Posting Profiles...");
+
+        // ==================================================
+        // Real account IDs from the current database
+        // ==================================================
+
+        var inventoryAccountId =
+            Guid.Parse(
+                "57D2B2AA-A621-430E-818E-7BDDB443C443");
+
+        var supplierAccountId =
+            Guid.Parse(
+                "8B49E22F-A123-4873-AB5B-AF8FE3DC607D");
+
+        // ==================================================
+        // Validate Accounts
+        // ==================================================
+
+        bool inventoryExists =
+            await context.Accounts.AnyAsync(
+                x => x.Id == inventoryAccountId);
+
+        if (!inventoryExists)
+        {
+            throw new InvalidOperationException(
+                "Inventory account 1140 was not found.");
+        }
+
+        bool supplierExists =
+            await context.Accounts.AnyAsync(
+                x => x.Id == supplierAccountId);
+
+        if (!supplierExists)
+        {
+            throw new InvalidOperationException(
+                "Supplier account 2110 was not found.");
+        }
+
+        // ==================================================
+        // Purchase
+        //
+        // Debit  : Inventory 1140
+        // Credit : Suppliers 2110
+        // ==================================================
+
+        var purchaseProfile =
+            await context.PostingProfiles
+                .Include(x => x.Lines)
+                .SingleOrDefaultAsync(
+                    x =>
+                        x.Code == "PURCHASE_DEFAULT" &&
+                        x.DocumentType == DocumentType.Purchase);
+
+        if (purchaseProfile == null)
+        {
+            purchaseProfile = new PostingProfile(
+                code: "PURCHASE_DEFAULT",
+                name: "Purchase - Default",
+                documentType: DocumentType.Purchase,
+                debitAccountId: inventoryAccountId,
+                creditAccountId: supplierAccountId,
+                cashFlowCategory: CashFlowCategory.None);
+
+            context.PostingProfiles.Add(purchaseProfile);
+
+            Console.WriteLine(
+                "Added Posting Profile: PURCHASE_DEFAULT");
+        }
+        else
+        {
+            purchaseProfile.Update(
+                name: "Purchase - Default",
+                debitAccountId: inventoryAccountId,
+                creditAccountId: supplierAccountId,
+                cashFlowCategory: CashFlowCategory.None);
+
+            Console.WriteLine(
+                "Posting Profile already exists: PURCHASE_DEFAULT");
+        }
+
+        // ==================================================
+        // Purchase Lines
+        // ==================================================
+
+        if (!purchaseProfile.Lines.Any())
+        {
+            purchaseProfile.AddLine(
+                new PostingProfileLine(
+                    sequence: 1,
+                    entryType: PostingEntryType.Debit,
+                    accountId: inventoryAccountId,
+                    amountSource: PostingAmountSource.NetTotal,
+                    percentage: 100m,
+                    description: "Purchase - Inventory"));
+
+            purchaseProfile.AddLine(
+                new PostingProfileLine(
+                    sequence: 2,
+                    entryType: PostingEntryType.Credit,
+                    accountId: supplierAccountId,
+                    amountSource: PostingAmountSource.NetTotal,
+                    percentage: 100m,
+                    description: "Purchase - Supplier"));
+
+            Console.WriteLine(
+                "Added Purchase Posting Profile Lines.");
+        }
+
+        // ==================================================
+        // Purchase Return
+        //
+        // Debit  : Suppliers 2110
+        // Credit : Inventory 1140
+        // ==================================================
+
+        var purchaseReturnProfile =
+            await context.PostingProfiles
+                .Include(x => x.Lines)
+                .SingleOrDefaultAsync(
+                    x =>
+                        x.Code == "PURCHASE_RETURN_DEFAULT" &&
+                        x.DocumentType == DocumentType.PurchaseReturn);
+
+        if (purchaseReturnProfile == null)
+        {
+            purchaseReturnProfile = new PostingProfile(
+                code: "PURCHASE_RETURN_DEFAULT",
+                name: "Purchase Return - Default",
+                documentType: DocumentType.PurchaseReturn,
+                debitAccountId: supplierAccountId,
+                creditAccountId: inventoryAccountId,
+                cashFlowCategory: CashFlowCategory.None);
+
+            context.PostingProfiles.Add(purchaseReturnProfile);
+
+            Console.WriteLine(
+                "Added Posting Profile: PURCHASE_RETURN_DEFAULT");
+        }
+        else
+        {
+            purchaseReturnProfile.Update(
+                name: "Purchase Return - Default",
+                debitAccountId: supplierAccountId,
+                creditAccountId: inventoryAccountId,
+                cashFlowCategory: CashFlowCategory.None);
+
+            Console.WriteLine(
+                "Posting Profile already exists: PURCHASE_RETURN_DEFAULT");
+        }
+
+        // ==================================================
+        // Purchase Return Lines
+        // ==================================================
+
+        if (!purchaseReturnProfile.Lines.Any())
+        {
+            purchaseReturnProfile.AddLine(
+                new PostingProfileLine(
+                    sequence: 1,
+                    entryType: PostingEntryType.Debit,
+                    accountId: supplierAccountId,
+                    amountSource: PostingAmountSource.NetTotal,
+                    percentage: 100m,
+                    description: "Purchase Return - Supplier"));
+
+            purchaseReturnProfile.AddLine(
+                new PostingProfileLine(
+                    sequence: 2,
+                    entryType: PostingEntryType.Credit,
+                    accountId: inventoryAccountId,
+                    amountSource: PostingAmountSource.NetTotal,
+                    percentage: 100m,
+                    description: "Purchase Return - Inventory"));
+
+            Console.WriteLine(
+                "Added Purchase Return Posting Profile Lines.");
+        }
+
+        await context.SaveChangesAsync();
+
+        Console.WriteLine(
+            "Posting Profiles check completed successfully.");
     }
 }
