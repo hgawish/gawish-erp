@@ -98,11 +98,11 @@ public class InventoryService : IInventoryService
             productId,
             warehouseId,
             quantity,
-            unitCost,
             transactionDate,
             referenceNumber,
             referenceId,
             notes,
+            unitCost,
             cancellationToken);
     }
 
@@ -127,28 +127,16 @@ public class InventoryService : IInventoryService
             productId,
             warehouseId,
             quantity,
-            unitCost,
             transactionDate,
             referenceNumber,
             referenceId,
             notes,
+            unitCost,
             cancellationToken);
     }
 
     //=========================================================
     // Reverse Purchase Return
-    //=========================================================
-    //
-    // Original Purchase Return:
-    //
-    //     Inventory -
-    //
-    // Reverse Purchase Return:
-    //
-    //     Inventory +
-    //
-    // The original historical cost is restored.
-    //
     //=========================================================
 
     public async Task<InventoryOperationResult>
@@ -178,7 +166,9 @@ public class InventoryService : IInventoryService
         return new InventoryOperationResult
         {
             Quantity = quantity,
+
             UnitCost = unitCost,
+
             TotalCost = quantity * unitCost
         };
     }
@@ -204,11 +194,11 @@ public class InventoryService : IInventoryService
             productId,
             warehouseId,
             quantity,
-            unitCost,
             transactionDate,
             referenceNumber,
             referenceId,
             notes,
+            null,
             cancellationToken);
     }
 
@@ -243,7 +233,9 @@ public class InventoryService : IInventoryService
         return new InventoryOperationResult
         {
             Quantity = quantity,
+
             UnitCost = unitCost,
+
             TotalCost = quantity * unitCost
         };
     }
@@ -279,7 +271,9 @@ public class InventoryService : IInventoryService
         return new InventoryOperationResult
         {
             Quantity = quantity,
+
             UnitCost = unitCost,
+
             TotalCost = quantity * unitCost
         };
     }
@@ -305,11 +299,11 @@ public class InventoryService : IInventoryService
             productId,
             warehouseId,
             quantity,
-            unitCost,
             transactionDate,
             referenceNumber,
             referenceId,
             notes,
+            unitCost,
             cancellationToken);
     }
 
@@ -347,7 +341,9 @@ public class InventoryService : IInventoryService
             return new InventoryOperationResult
             {
                 Quantity = quantity,
+
                 UnitCost = unitCost,
+
                 TotalCost = quantity * unitCost
             };
         }
@@ -357,11 +353,11 @@ public class InventoryService : IInventoryService
             productId,
             warehouseId,
             quantity,
-            unitCost,
             transactionDate,
             referenceNumber,
             referenceId,
             notes,
+            null,
             cancellationToken);
     }
 
@@ -382,12 +378,16 @@ public class InventoryService : IInventoryService
         CancellationToken cancellationToken)
     {
         if (quantity <= 0)
+        {
             throw new InvalidOperationException(
                 "Quantity must be greater than zero.");
+        }
 
         if (unitCost < 0)
+        {
             throw new InvalidOperationException(
                 "Unit cost cannot be negative.");
+        }
 
         var transaction =
             new StockTransaction(
@@ -435,25 +435,12 @@ public class InventoryService : IInventoryService
     // Decrease Stock
     //=========================================================
     //
-    // IMPORTANT:
+    // historicalUnitCost:
     //
-    // The supplied unitCost is intentionally NOT used as the
-    // actual cost for normal stock decreases.
+    // null  -> use current AverageCost
     //
-    // Inventory Balance AverageCost remains the source of truth
-    // for normal sales and purchase returns.
-    //
-    // However, for a historical Purchase Return we need the
-    // exact cost of the original Purchase transaction.
-    //
-    // Therefore:
-    //
-    // - unitCost > 0  => historical cost override
-    // - unitCost == 0 => current AverageCost
-    //
-    // This allows normal existing callers to continue using
-    // AverageCost while historical reversal/return operations
-    // can explicitly provide their original cost.
+    // value -> use the historical cost supplied by the
+    //          originating document.
     //
     //=========================================================
 
@@ -463,16 +450,24 @@ public class InventoryService : IInventoryService
             Guid productId,
             Guid warehouseId,
             decimal quantity,
-            decimal unitCost,
             DateTime transactionDate,
             string referenceNumber,
             Guid? referenceId,
             string? notes,
+            decimal? historicalUnitCost,
             CancellationToken cancellationToken)
     {
         if (quantity <= 0)
+        {
             throw new InvalidOperationException(
                 "Quantity must be greater than zero.");
+        }
+
+        if (historicalUnitCost is < 0)
+        {
+            throw new InvalidOperationException(
+                "Historical unit cost cannot be negative.");
+        }
 
         var balance =
             await _balanceRepository.GetAsync(
@@ -480,8 +475,10 @@ public class InventoryService : IInventoryService
                 warehouseId);
 
         if (balance is null)
+        {
             throw new InvalidOperationException(
                 "Inventory balance not found.");
+        }
 
         if (balance.Quantity < quantity)
         {
@@ -492,23 +489,18 @@ public class InventoryService : IInventoryService
         }
 
         //=====================================================
-        // Determine Cost
+        // Determine Actual Cost
         //=====================================================
 
         var actualUnitCost =
-            unitCost > 0
-                ? unitCost
-                : balance.AverageCost;
-
-        if (actualUnitCost < 0)
-            throw new InvalidOperationException(
-                "Unit cost cannot be negative.");
+            historicalUnitCost
+            ?? balance.AverageCost;
 
         var totalCost =
             quantity * actualUnitCost;
 
         //=====================================================
-        // Decrease Inventory
+        // Decrease Inventory Balance
         //=====================================================
 
         balance.Decrease(quantity);
@@ -540,7 +532,9 @@ public class InventoryService : IInventoryService
         return new InventoryOperationResult
         {
             Quantity = quantity,
+
             UnitCost = actualUnitCost,
+
             TotalCost = totalCost
         };
     }

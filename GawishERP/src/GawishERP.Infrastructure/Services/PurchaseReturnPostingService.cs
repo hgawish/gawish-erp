@@ -17,14 +17,10 @@ public sealed class PurchaseReturnPostingService
     private readonly IInventoryService
         _inventoryService;
 
-    private readonly IStockTransactionRepository
-        _stockTransactionRepository;
-
     public PurchaseReturnPostingService(
         IPostingEngine postingEngine,
         IPurchaseReturnRepository purchaseReturnRepository,
-        IInventoryService inventoryService,
-        IStockTransactionRepository stockTransactionRepository)
+        IInventoryService inventoryService)
     {
         _postingEngine = postingEngine;
 
@@ -33,9 +29,6 @@ public sealed class PurchaseReturnPostingService
 
         _inventoryService =
             inventoryService;
-
-        _stockTransactionRepository =
-            stockTransactionRepository;
     }
 
     //=========================================================
@@ -59,101 +52,50 @@ public sealed class PurchaseReturnPostingService
         }
 
         //=====================================================
-        // Get Original Purchase Transactions
+        // Validate Purchase Relationship
         //=====================================================
-        //
-        // The original Purchase created:
-        //
-        // ReferenceId      = Purchase.Id
-        // TransactionType = Purchase
-        // UnitCost         = historical purchase cost
-        //
-        // We use that cost instead of the current inventory
-        // AverageCost.
-        //
-        //=====================================================
-
-        var originalPurchaseTransactions =
-            await _stockTransactionRepository
-                .GetByReferenceAsync(
-                    purchaseReturn.PurchaseId,
-                    StockTransactionType.Purchase);
-
-        if (originalPurchaseTransactions.Count == 0)
-        {
-            throw new InvalidOperationException(
-                $"Original purchase inventory transactions " +
-                $"were not found for purchase document " +
-                $"'{purchaseReturn.PurchaseId}'.");
-        }
-
-        //=====================================================
-        // Posting Lines
-        //=====================================================
-
-        var postingLines =
-            new List<PostingLineContext>(
-                lines.Count);
-
-        decimal totalCost = 0m;
 
         foreach (var line in lines)
         {
-            //=================================================
-            // Find Historical Purchase Cost
-            //=================================================
-
-            var matchingTransactions =
-                originalPurchaseTransactions
-                    .Where(
-                        x =>
-                            x.ProductId ==
-                                line.ProductId &&
-                            x.WarehouseId ==
-                                purchaseReturn.WarehouseId)
-                    .ToList();
-
-            if (matchingTransactions.Count == 0)
+            if (line.PurchaseLine is null)
             {
                 throw new InvalidOperationException(
-                    $"Original purchase inventory transaction " +
-                    $"was not found for product " +
-                    $"'{line.ProductId}'.");
+                    $"Purchase line '{line.PurchaseLineId}' " +
+                    $"was not loaded for purchase return.");
             }
 
-            if (matchingTransactions.Count > 1)
-            {
-                throw new InvalidOperationException(
-                    $"Multiple original purchase inventory " +
-                    $"transactions were found for product " +
-                    $"'{line.ProductId}'. " +
-                    $"Historical cost cannot be determined " +
-                    $"unambiguously.");
-            }
-
-            var originalTransaction =
-                matchingTransactions[0];
+            //=================================================
+            // Historical Cost
+            //=================================================
 
             var historicalUnitCost =
-                originalTransaction.UnitCost;
-
-            var lineCost =
-                line.Quantity *
-                historicalUnitCost;
-
-            totalCost +=
-                lineCost;
+                line.PurchaseLine.UnitCost;
 
             //=================================================
-            // Decrease Inventory
+            // Document Snapshot Validation
             //=================================================
             //
-            // Purchase Return:
+            // PurchaseReturnLine.UnitCost should represent
+            // the historical cost captured when the return
+            // line was created.
             //
-            // Inventory -
+            // If it differs from the original PurchaseLine
+            // cost, stop instead of silently posting an
+            // incorrect inventory valuation.
             //
-            // using the historical purchase cost.
-            //
+            //=================================================
+
+            if (line.UnitCost != historicalUnitCost)
+            {
+                throw new InvalidOperationException(
+                    $"Historical cost mismatch for product " +
+                    $"'{line.ProductId}'. " +
+                    $"Purchase cost: {historicalUnitCost}, " +
+                    $"Purchase return cost: {line.UnitCost}.");
+            }
+
+            //=================================================
+            // Inventory
             //=================================================
 
             var inventoryResult =
@@ -194,50 +136,18 @@ public sealed class PurchaseReturnPostingService
                 historicalUnitCost)
             {
                 throw new InvalidOperationException(
-                    $"Historical purchase cost mismatch for " +
-                    $"product '{line.ProductId}'.");
+                    $"Inventory historical cost mismatch " +
+                    $"for product '{line.ProductId}'.");
             }
-
-            //=================================================
-            // Posting Line
-            //=================================================
-
-            postingLines.Add(
-                new PostingLineContext
-                {
-                    ProductId =
-                        line.ProductId,
-
-                    WarehouseId =
-                        purchaseReturn.WarehouseId,
-
-                    Quantity =
-                        line.Quantity,
-
-                    // Purchase return value.
-                    UnitPrice =
-                        line.UnitCost,
-
-                    // Historical inventory cost.
-                    UnitCost =
-                        historicalUnitCost,
-
-                    Description =
-                        line.Notes
-                });
         }
 
         //=====================================================
-        // Posting Context
+        // Accounting Posting
         //=====================================================
 
         var context =
             new PostingContext
             {
-                //=================================================
-                // Document
-                //=================================================
-
                 DocumentId =
                     purchaseReturn.Id,
 
@@ -265,39 +175,48 @@ public sealed class PurchaseReturnPostingService
                 Description =
                     purchaseReturn.Notes,
 
-                //=================================================
-                // Amount
-                //=================================================
-
                 Amount =
                     purchaseReturn.TotalAmount,
 
-                //=================================================
-                // Historical Cost
-                //=================================================
-
                 CostAmount =
-                    totalCost,
-
-                //=================================================
-                // Quantity
-                //=================================================
+                    lines.Sum(
+                        x =>
+                            x.Quantity *
+                            x.PurchaseLine.UnitCost),
 
                 Quantity =
                     lines.Sum(
-                        x => x.Quantity),
-
-                //=================================================
-                // Lines
-                //=================================================
+                        x =>
+                            x.Quantity),
 
                 Lines =
-                    postingLines
-            };
+                    lines
+                        .Select(
+                            x =>
+                                new PostingLineContext
+                                {
+                                    ProductId =
+                                        x.ProductId,
 
-        //=====================================================
-        // Accounting Posting
-        //=====================================================
+                                    WarehouseId =
+                                        purchaseReturn
+                                            .WarehouseId,
+
+                                    Quantity =
+                                        x.Quantity,
+
+                                    // Historical purchase cost.
+                                    UnitPrice =
+                                        x.PurchaseLine.UnitCost,
+
+                                    UnitCost =
+                                        x.PurchaseLine.UnitCost,
+
+                                    Description =
+                                        x.Notes
+                                })
+                        .ToList()
+            };
 
         await _postingEngine.PostDocumentAsync(
             context,
@@ -341,87 +260,37 @@ public sealed class PurchaseReturnPostingService
         }
 
         //=====================================================
-        // Get Original Purchase Return Transactions
+        // Reverse Inventory
         //=====================================================
-        //
-        // The original Purchase Return created:
-        //
-        // ReferenceId      = PurchaseReturn.Id
-        // TransactionType = PurchaseReturn
-        // UnitCost         = historical purchase cost
-        //
-        //=====================================================
-
-        var originalReturnTransactions =
-            await _stockTransactionRepository
-                .GetByReferenceAsync(
-                    purchaseReturn.Id,
-                    StockTransactionType.PurchaseReturn);
-
-        if (originalReturnTransactions.Count == 0)
-        {
-            throw new InvalidOperationException(
-                $"Original purchase return inventory " +
-                $"transactions were not found for document " +
-                $"'{purchaseReturn.DocumentNumber}'.");
-        }
-
-        //=====================================================
-        // Posting Lines
-        //=====================================================
-
-        var postingLines =
-            new List<PostingLineContext>(
-                lines.Count);
-
-        decimal totalCost = 0m;
 
         foreach (var line in lines)
         {
-            //=================================================
-            // Find Historical Return Cost
-            //=================================================
-
-            var matchingTransactions =
-                originalReturnTransactions
-                    .Where(
-                        x =>
-                            x.ProductId ==
-                                line.ProductId &&
-                            x.WarehouseId ==
-                                purchaseReturn.WarehouseId)
-                    .ToList();
-
-            if (matchingTransactions.Count == 0)
+            if (line.PurchaseLine is null)
             {
                 throw new InvalidOperationException(
-                    $"Original purchase return inventory " +
-                    $"transaction was not found for product " +
-                    $"'{line.ProductId}'.");
+                    $"Purchase line '{line.PurchaseLineId}' " +
+                    $"was not loaded for purchase return.");
             }
 
-            if (matchingTransactions.Count > 1)
-            {
-                throw new InvalidOperationException(
-                    $"Multiple original purchase return " +
-                    $"inventory transactions were found for " +
-                    $"product '{line.ProductId}'. " +
-                    $"Historical cost cannot be determined " +
-                    $"unambiguously.");
-            }
-
-            var originalTransaction =
-                matchingTransactions[0];
+            //=================================================
+            // Historical Cost
+            //=================================================
 
             var historicalUnitCost =
-                originalTransaction.UnitCost;
+                line.PurchaseLine.UnitCost;
 
-            var lineCost =
-                line.Quantity *
-                historicalUnitCost;
+            //=================================================
+            // Validate Stored Return Cost
+            //=================================================
 
-            totalCost +=
-                lineCost;
+            if (line.UnitCost != historicalUnitCost)
+            {
+                throw new InvalidOperationException(
+                    $"Historical cost mismatch for product " +
+                    $"'{line.ProductId}'. " +
+                    $"Purchase cost: {historicalUnitCost}, " +
+                    $"Purchase return cost: {line.UnitCost}.");
+            }
 
             //=================================================
             // Reverse Inventory
@@ -429,74 +298,58 @@ public sealed class PurchaseReturnPostingService
             //
             // Original Purchase Return:
             //
-            // Inventory -
+            //     Inventory -
             //
             // Reverse:
             //
-            // Inventory +
+            //     Inventory +
             //
-            // using the same historical cost.
+            // using the SAME historical cost.
             //
             //=================================================
 
-            await _inventoryService
-                .ReversePurchaseReturnAsync(
-                    productId:
-                        line.ProductId,
+            var inventoryResult =
+                await _inventoryService
+                    .ReversePurchaseReturnAsync(
+                        productId:
+                            line.ProductId,
 
-                    warehouseId:
-                        purchaseReturn.WarehouseId,
+                        warehouseId:
+                            purchaseReturn.WarehouseId,
 
-                    quantity:
-                        line.Quantity,
+                        quantity:
+                            line.Quantity,
 
-                    unitCost:
-                        historicalUnitCost,
+                        unitCost:
+                            historicalUnitCost,
 
-                    transactionDate:
-                        purchaseReturn.DocumentDate,
+                        transactionDate:
+                            purchaseReturn.DocumentDate,
 
-                    referenceId:
-                        purchaseReturn.Id,
+                        referenceId:
+                            purchaseReturn.Id,
 
-                    referenceNumber:
-                        purchaseReturn.DocumentNumber,
+                        referenceNumber:
+                            purchaseReturn.DocumentNumber,
 
-                    notes:
-                        line.Notes,
+                        notes:
+                            line.Notes,
 
-                    cancellationToken:
-                        cancellationToken);
+                        cancellationToken:
+                            cancellationToken);
 
-            //=================================================
-            // Reverse Posting Line
-            //=================================================
-
-            postingLines.Add(
-                new PostingLineContext
-                {
-                    ProductId =
-                        line.ProductId,
-
-                    WarehouseId =
-                        purchaseReturn.WarehouseId,
-
-                    Quantity =
-                        line.Quantity,
-
-                    UnitPrice =
-                        line.UnitCost,
-
-                    UnitCost =
-                        historicalUnitCost,
-
-                    Description =
-                        line.Notes
-                });
+            if (inventoryResult.UnitCost !=
+                historicalUnitCost)
+            {
+                throw new InvalidOperationException(
+                    $"Inventory historical cost mismatch " +
+                    $"during purchase return reversal for " +
+                    $"product '{line.ProductId}'.");
+            }
         }
 
         //=====================================================
-        // Reverse Posting Context
+        // Reverse Accounting Posting
         //=====================================================
 
         var context =
@@ -529,39 +382,47 @@ public sealed class PurchaseReturnPostingService
                 Description =
                     purchaseReturn.Notes,
 
-                //=================================================
-                // Return Amount
-                //=================================================
-
                 Amount =
                     purchaseReturn.TotalAmount,
 
-                //=================================================
-                // Historical Cost
-                //=================================================
-
                 CostAmount =
-                    totalCost,
-
-                //=================================================
-                // Quantity
-                //=================================================
+                    lines.Sum(
+                        x =>
+                            x.Quantity *
+                            x.PurchaseLine.UnitCost),
 
                 Quantity =
                     lines.Sum(
-                        x => x.Quantity),
-
-                //=================================================
-                // Lines
-                //=================================================
+                        x =>
+                            x.Quantity),
 
                 Lines =
-                    postingLines
-            };
+                    lines
+                        .Select(
+                            x =>
+                                new PostingLineContext
+                                {
+                                    ProductId =
+                                        x.ProductId,
 
-        //=====================================================
-        // Reverse Accounting Posting
-        //=====================================================
+                                    WarehouseId =
+                                        purchaseReturn
+                                            .WarehouseId,
+
+                                    Quantity =
+                                        x.Quantity,
+
+                                    UnitPrice =
+                                        x.PurchaseLine.UnitCost,
+
+                                    UnitCost =
+                                        x.PurchaseLine.UnitCost,
+
+                                    Description =
+                                        x.Notes
+                                })
+                        .ToList()
+            };
 
         await _postingEngine.ReverseDocumentAsync(
             context,
