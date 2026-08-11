@@ -5,14 +5,20 @@ using GawishERP.Domain.Entities;
 
 namespace GawishERP.Infrastructure.Services;
 
-public sealed class PurchasePostingService : IPurchasePostingService
+public sealed class PurchasePostingService
+    : IPurchasePostingService
 {
     private readonly IPostingEngine _postingEngine;
 
+    private readonly IInventoryService _inventoryService;
+
     public PurchasePostingService(
-        IPostingEngine postingEngine)
+        IPostingEngine postingEngine,
+        IInventoryService inventoryService)
     {
         _postingEngine = postingEngine;
+
+        _inventoryService = inventoryService;
     }
 
     //=========================================================
@@ -25,7 +31,8 @@ public sealed class PurchasePostingService : IPurchasePostingService
     {
         ArgumentNullException.ThrowIfNull(purchase);
 
-        var lines = purchase.Lines.ToList();
+        var lines =
+            purchase.Lines.ToList();
 
         if (lines.Count == 0)
         {
@@ -33,174 +40,125 @@ public sealed class PurchasePostingService : IPurchasePostingService
                 "Purchase document has no lines.");
         }
 
-        var context = new PostingContext
+        //=====================================================
+        // Inventory
+        //=====================================================
+        //
+        // Every Purchase Line creates:
+        //
+        //     StockTransaction.Purchase
+        //
+        // with:
+        //
+        //     UnitCost     = PurchaseLine.UnitCost
+        //     ReferenceId  = PurchaseHeader.Id
+        //
+        // This transaction becomes the historical-cost source
+        // for future Purchase Returns.
+        //
+        //=====================================================
+
+        foreach (var line in lines)
         {
-            //=================================================
-            // Document
-            //=================================================
+            await _inventoryService.AddPurchaseAsync(
+                productId:
+                    line.ProductId,
 
-            DocumentId = purchase.Id,
+                warehouseId:
+                    purchase.WarehouseId,
 
-            DocumentType = DocumentType.Purchase,
+                quantity:
+                    line.Quantity,
 
-            DocumentNumber = purchase.DocumentNumber,
+                unitCost:
+                    line.UnitCost,
 
-            PostingDate = purchase.DocumentDate,
+                transactionDate:
+                    purchase.DocumentDate,
 
-            FiscalYearId = purchase.FiscalYearId,
+                referenceId:
+                    purchase.Id,
 
-            CompanyId = purchase.CompanyId,
+                referenceNumber:
+                    purchase.DocumentNumber,
 
-            BranchId = purchase.BranchId,
+                notes:
+                    line.Notes,
 
-            ReferenceNumber = purchase.InvoiceNumber,
-
-            Description = purchase.Notes,
-
-            //=================================================
-            // Amounts
-            //=================================================
-
-            // Net amount including tax and after discount.
-            Amount = purchase.NetTotal,
-
-            // Gross purchase amount before discount.
-            TotalBeforeDiscount = purchase.TotalBeforeDiscount,
-
-            // Purchase discount.
-            DiscountAmount = purchase.DiscountAmount,
-
-            // Input VAT / purchase tax.
-            TaxAmount = purchase.TaxAmount,
-
-            // Inventory cost before discount.
-            //
-            // The discount can be posted separately through
-            // PostingAmountSource.Discount.
-            CostAmount = purchase.TotalBeforeDiscount,
-
-            // Total quantity of purchased items.
-            Quantity = lines.Sum(x => x.Quantity),
-
-            //=================================================
-            // Lines
-            //=================================================
-
-            Lines = lines
-                .Select(x => new PostingLineContext
-                {
-                    ProductId = x.ProductId,
-
-                    WarehouseId = purchase.WarehouseId,
-
-                    Quantity = x.Quantity,
-
-                    // PurchaseLine contains UnitCost.
-                    UnitPrice = x.UnitCost,
-
-                    // For a purchase document the purchase cost
-                    // is the same value as UnitPrice.
-                    UnitCost = x.UnitCost,
-
-                    BatchNumber = x.BatchNumber,
-
-                    ExpiryDate = x.ExpiryDate,
-
-                    Description = x.Notes
-                })
-                .ToList()
-        };
-
-        await _postingEngine.PostDocumentAsync(
-            context,
-            cancellationToken);
-    }
-
-    //=========================================================
-    // Post Purchase Return
-    //=========================================================
-
-    public async Task PostPurchaseReturnAsync(
-        PurchaseReturnHeader purchaseReturn,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(purchaseReturn);
-
-        var lines = purchaseReturn.Lines.ToList();
-
-        if (lines.Count == 0)
-        {
-            throw new InvalidOperationException(
-                "Purchase return document has no lines.");
+                cancellationToken:
+                    cancellationToken);
         }
 
-        var context = new PostingContext
-        {
-            //=================================================
-            // Document
-            //=================================================
+        //=====================================================
+        // Accounting Posting
+        //=====================================================
 
-            DocumentId = purchaseReturn.Id,
+        var context =
+            new PostingContext
+            {
+                DocumentId =
+                    purchase.Id,
 
-            DocumentType = DocumentType.PurchaseReturn,
+                DocumentType =
+                    DocumentType.Purchase,
 
-            DocumentNumber = purchaseReturn.DocumentNumber,
+                DocumentNumber =
+                    purchase.DocumentNumber,
 
-            PostingDate = purchaseReturn.DocumentDate,
+                PostingDate =
+                    purchase.DocumentDate,
 
-            FiscalYearId = purchaseReturn.FiscalYearId,
+                FiscalYearId =
+                    purchase.FiscalYearId,
 
-            CompanyId = purchaseReturn.CompanyId,
+                CompanyId =
+                    purchase.CompanyId,
 
-            BranchId = purchaseReturn.BranchId,
+                BranchId =
+                    purchase.BranchId,
 
-            ReferenceNumber = purchaseReturn.DocumentNumber,
+                ReferenceNumber =
+                    purchase.InvoiceNumber,
 
-            Description = purchaseReturn.Notes,
+                Description =
+                    purchase.Notes,
 
-            //=================================================
-            // Amounts
-            //=================================================
+                Amount =
+                    purchase.NetTotal,
 
-            Amount = purchaseReturn.TotalAmount,
+                Lines =
+                    lines.Select(
+                        x =>
+                            new PostingLineContext
+                            {
+                                ProductId =
+                                    x.ProductId,
 
-            TotalBeforeDiscount = purchaseReturn.TotalAmount,
+                                WarehouseId =
+                                    purchase.WarehouseId,
 
-            CostAmount = purchaseReturn.TotalAmount,
+                                Quantity =
+                                    x.Quantity,
 
-            Quantity = lines.Sum(x => x.Quantity),
+                                // PurchaseLine contains UnitCost.
+                                UnitPrice =
+                                    x.UnitCost,
 
-            //=================================================
-            // Lines
-            //=================================================
+                                // Historical purchase cost.
+                                UnitCost =
+                                    x.UnitCost,
 
-            Lines = lines
-                .Select(x => new PostingLineContext
-                {
-                    ProductId = x.ProductId,
+                                BatchNumber =
+                                    x.BatchNumber,
 
-                    WarehouseId = purchaseReturn.WarehouseId,
+                                ExpiryDate =
+                                    x.ExpiryDate,
 
-                    Quantity = x.Quantity,
-
-                    // PurchaseReturnLine contains UnitCost.
-                    UnitPrice = x.UnitCost,
-
-                    UnitCost = x.UnitCost,
-
-                    // PurchaseReturnLine itself does not contain
-                    // batch/expiry information.
-                    //
-                    // The original PurchaseLine contains these
-                    // values, so use it when the navigation is loaded.
-                    BatchNumber = x.PurchaseLine.BatchNumber,
-
-                    ExpiryDate = x.PurchaseLine.ExpiryDate,
-
-                    Description = x.Notes
-                })
-                .ToList()
-        };
+                                Description =
+                                    x.Notes
+                            })
+                        .ToList()
+            };
 
         await _postingEngine.PostDocumentAsync(
             context,
@@ -216,6 +174,7 @@ public sealed class PurchasePostingService : IPurchasePostingService
         CancellationToken cancellationToken = default)
     {
         throw new NotImplementedException(
-            "ReversePurchaseInvoiceAsync will be implemented after the document reversal workflow is completed.");
+            "ReversePurchaseInvoiceAsync will be implemented " +
+            "after Purchase historical-cost posting is completed.");
     }
 }
