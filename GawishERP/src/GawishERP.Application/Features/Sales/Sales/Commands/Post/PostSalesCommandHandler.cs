@@ -9,16 +9,16 @@ public sealed class PostSalesCommandHandler
     : IRequestHandler<PostSalesCommand, PostSalesResponse>
 {
     private readonly ISalesRepository _salesRepository;
-    private readonly IInventoryService _inventoryService;
+    private readonly ISalesPostingService _salesPostingService;
     private readonly IUnitOfWork _unitOfWork;
 
     public PostSalesCommandHandler(
         ISalesRepository salesRepository,
-        IInventoryService inventoryService,
+        ISalesPostingService salesPostingService,
         IUnitOfWork unitOfWork)
     {
         _salesRepository = salesRepository;
-        _inventoryService = inventoryService;
+        _salesPostingService = salesPostingService;
         _unitOfWork = unitOfWork;
     }
 
@@ -26,46 +26,82 @@ public sealed class PostSalesCommandHandler
         PostSalesCommand request,
         CancellationToken cancellationToken)
     {
+        //=========================================================
+        // Load Sales
+        //=========================================================
+
         var sales =
             await _salesRepository.GetByIdWithLinesAsync(
                 request.SalesId,
                 cancellationToken);
 
         if (sales is null)
+        {
             throw new InvalidOperationException(
                 "Sales document not found.");
+        }
+
+        //=========================================================
+        // Status Validation
+        //=========================================================
 
         if (sales.Status == DocumentStatus.Posted)
+        {
             throw new InvalidOperationException(
                 "Sales document already posted.");
+        }
 
         if (sales.Status == DocumentStatus.Cancelled)
+        {
             throw new InvalidOperationException(
                 "Cancelled sales document cannot be posted.");
+        }
+
+        //=========================================================
+        // Lines Validation
+        //=========================================================
 
         if (!sales.Lines.Any())
+        {
             throw new InvalidOperationException(
                 "Sales document has no lines.");
-
-        foreach (var line in sales.Lines)
-        {
-            await _inventoryService.AddSaleAsync(
-                line.ProductId,
-                sales.WarehouseId,
-                line.Quantity,
-                line.UnitPrice,
-                sales.DocumentDate,
-                sales.Id,
-                sales.DocumentNumber,
-                sales.Notes,
-                cancellationToken);
         }
+
+        //=========================================================
+        // Posting
+        //
+        // SalesPostingService is responsible for:
+        //
+        // 1. Inventory decrease
+        // 2. Actual inventory costing
+        // 3. COGS calculation
+        // 4. Journal Entry creation
+        //
+        // DO NOT call InventoryService.AddSaleAsync here.
+        //=========================================================
+
+        await _salesPostingService.PostSalesInvoiceAsync(
+            sales,
+            cancellationToken);
+
+        //=========================================================
+        // Post Sales Document
+        //=========================================================
 
         sales.Post();
 
+        //=========================================================
+        // Save Sales Status
+        //=========================================================
+
         _salesRepository.Update(sales);
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(
+            cancellationToken);
+
+        //=========================================================
+        // Response
+        //=========================================================
 
         return new PostSalesResponse
         {
