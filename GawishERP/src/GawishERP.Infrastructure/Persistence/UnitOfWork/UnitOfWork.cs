@@ -21,7 +21,10 @@ public sealed class UnitOfWork : IUnitOfWork
         }
         catch (DbUpdateConcurrencyException ex)
         {
-            var diagnostics = ConcurrencyDiagnostics.Build(_context);
+            var diagnostics = await ConcurrencyDiagnostics.BuildAsync(
+                _context,
+                cancellationToken);
+
             throw new InvalidOperationException(
                 $"Optimistic concurrency failure during SaveChanges.\n{diagnostics}",
                 ex);
