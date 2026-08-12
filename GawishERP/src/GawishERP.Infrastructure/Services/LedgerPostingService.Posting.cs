@@ -17,7 +17,9 @@ public sealed partial class LedgerPostingService
                 header.CompanyId,
                 header.BranchId);
 
-        if (balance is null)
+        var isNewBalance = balance is null;
+
+        if (isNewBalance)
         {
             balance = new AccountBalance(
                 line.AccountId,
@@ -41,7 +43,13 @@ public sealed partial class LedgerPostingService
                 line.Credit);
         }
 
-        _accountBalanceRepository.Update(balance);
+        // A newly-created balance is already tracked as Added.
+        // Calling Update() here would incorrectly change it to Modified,
+        // causing EF Core to issue UPDATE for a row that does not exist yet.
+        if (!isNewBalance)
+        {
+            _accountBalanceRepository.Update(balance);
+        }
 
         var ledgerTransaction =
             new LedgerTransaction(
