@@ -1,4 +1,5 @@
 ﻿using GawishERP.Application.Common.Interfaces;
+using GawishERP.Application.Features.Accounting.JournalEntries.Commands.Reverse;
 using GawishERP.Domain.Common;
 using GawishERP.Domain.Interfaces;
 using MediatR;
@@ -10,16 +11,25 @@ public sealed class CancelPurchaseCommandHandler
 {
     private readonly IPurchaseRepository _purchaseRepository;
     private readonly IInventoryService _inventoryService;
+    private readonly IStockTransactionRepository _stockTransactionRepository;
+    private readonly IJournalEntryRepository _journalEntryRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IMediator _mediator;
 
     public CancelPurchaseCommandHandler(
         IPurchaseRepository purchaseRepository,
         IInventoryService inventoryService,
-        IUnitOfWork unitOfWork)
+        IStockTransactionRepository stockTransactionRepository,
+        IJournalEntryRepository journalEntryRepository,
+        IUnitOfWork unitOfWork,
+        IMediator mediator)
     {
         _purchaseRepository = purchaseRepository;
         _inventoryService = inventoryService;
+        _stockTransactionRepository = stockTransactionRepository;
+        _journalEntryRepository = journalEntryRepository;
         _unitOfWork = unitOfWork;
+        _mediator = mediator;
     }
 
     public async Task<CancelPurchaseResponse> Handle(
@@ -43,18 +53,76 @@ public sealed class CancelPurchaseCommandHandler
             throw new InvalidOperationException(
                 "Only posted purchase can be cancelled.");
 
+        // Find the original posted Purchase journal before changing the
+        // document. A reversed journal must never be reversed again.
+        var journalEntry = _journalEntryRepository
+            .GetQueryable()
+            .FirstOrDefault(x =>
+                x.DocumentType == DocumentType.Purchase &&
+                x.ReferenceNumber == purchase.DocumentNumber &&
+                x.Status == DocumentStatus.Posted &&
+                !x.IsReversed);
+
+        if (journalEntry is null)
+            throw new InvalidOperationException(
+                $"Posted Purchase journal entry not found for {purchase.DocumentNumber}, or it has already been reversed.");
+
+        // Cancellation must use the historical cost recorded by the original
+        // Purchase stock transactions, not a current inventory average and not
+        // a recalculated document value.
+        var originalPurchaseTransactions =
+            await _stockTransactionRepository.GetByReferenceAsync(
+                purchase.Id,
+                StockTransactionType.Purchase);
+
         foreach (var line in purchase.Lines)
         {
-            await _inventoryService.ReversePurchaseAsync(
+            var transactions = originalPurchaseTransactions
+                .Where(x => x.ProductId == line.ProductId)
+                .ToList();
+
+            var totalOriginalQuantity = transactions.Sum(x => x.Quantity);
+
+            if (transactions.Count == 0 || totalOriginalQuantity < line.Quantity)
+            {
+                throw new InvalidOperationException(
+                    $"Original Purchase stock transaction not found or insufficient for product {line.ProductId}.");
+            }
+
+            var weightedCost = transactions.Sum(x => x.Quantity * x.UnitCost);
+            var historicalUnitCost =
+                totalOriginalQuantity == 0
+                    ? 0
+                    : weightedCost / totalOriginalQuantity;
+
+            var result = await _inventoryService.ReversePurchaseAsync(
                 line.ProductId,
                 purchase.WarehouseId,
                 line.Quantity,
-                line.UnitCost,
+                historicalUnitCost,
                 purchase.DocumentDate,
                 purchase.Id,
                 purchase.DocumentNumber,
                 purchase.Notes,
                 cancellationToken);
+
+            if (result.Quantity != line.Quantity)
+            {
+                throw new InvalidOperationException(
+                    "Inventory reversal quantity does not match the original purchase line.");
+            }
+        }
+
+        // Reverse the original Purchase journal. This creates and posts the
+        // opposite journal and marks the original journal as reversed.
+        var reverseResult = await _mediator.Send(
+            new ReverseJournalEntryCommand(journalEntry.Id),
+            cancellationToken);
+
+        if (reverseResult.IsFailure)
+        {
+            throw new InvalidOperationException(
+                reverseResult.Error.Message);
         }
 
         purchase.Cancel();
