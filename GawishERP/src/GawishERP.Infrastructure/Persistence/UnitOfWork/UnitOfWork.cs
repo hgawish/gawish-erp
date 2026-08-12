@@ -1,4 +1,5 @@
-﻿using GawishERP.Application.Common.Interfaces;
+using GawishERP.Application.Common.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 namespace GawishERP.Infrastructure.Persistence.UnitOfWork;
 
@@ -14,6 +15,17 @@ public sealed class UnitOfWork : IUnitOfWork
     public async Task<int> SaveChangesAsync(
         CancellationToken cancellationToken = default)
     {
-        return await _context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            return await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            var diagnostics = ConcurrencyDiagnostics.Build(_context);
+            throw new DbUpdateConcurrencyException(
+                $"Optimistic concurrency failure during SaveChanges.\n{diagnostics}",
+                ex.Entries,
+                ex);
+        }
     }
 }
