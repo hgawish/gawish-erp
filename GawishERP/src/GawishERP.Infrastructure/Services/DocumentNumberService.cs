@@ -15,35 +15,12 @@ public sealed class DocumentNumberService
         _numberSeriesRepository = numberSeriesRepository;
     }
 
-    // =========================================================
-    // Generate Number
-    // =========================================================
-
     public async Task<string> GenerateAsync(
         DocumentType documentType,
         CancellationToken cancellationToken = default)
     {
-        var series =
-            await _numberSeriesRepository.GetByDocumentTypeAsync(
-                documentType);
-
-        if (series is null)
-        {
-            throw new InvalidOperationException(
-                $"Number Series for '{documentType}' was not found.");
-        }
-
-        // GetByDocumentTypeAsync returns a tracked entity.
-        // EF Core automatically detects the CurrentNumber change,
-        // so explicitly calling Update() is unnecessary and can
-        // interfere with the RowVersion concurrency token.
-        return series.GenerateNextNumber();
+        return await _numberSeriesRepository.GetNextNumberAsync(documentType);
     }
-
-    // =========================================================
-    // Generate Number
-    // Company / Branch / Fiscal Year
-    // =========================================================
 
     public async Task<string> GenerateAsync(
         DocumentType documentType,
@@ -52,21 +29,10 @@ public sealed class DocumentNumberService
         Guid? fiscalYearId,
         CancellationToken cancellationToken = default)
     {
-        var series =
-            await _numberSeriesRepository.GetByDocumentTypeAsync(
-                documentType,
-                companyId,
-                branchId,
-                fiscalYearId);
-
-        if (series is null)
-        {
-            throw new InvalidOperationException(
-                $"Number Series for '{documentType}' was not found.");
-        }
-
-        // The repository query is tracked, therefore EF Core will
-        // persist CurrentNumber automatically on SaveChangesAsync().
-        return series.GenerateNextNumber();
+        return await _numberSeriesRepository.GetNextNumberAsync(
+            documentType,
+            companyId,
+            branchId,
+            fiscalYearId);
     }
 }
