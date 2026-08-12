@@ -21,16 +21,15 @@ public interface IJournalEntryRepository
         Guid id,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// يستخدم أثناء الـ Reverse لضمان تحميل كل البيانات المطلوبة
-    /// </summary>
     Task<JournalEntryHeader?> GetForReverseAsync(
         Guid id,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// جميع القيود
-    /// </summary>
+    Task<JournalEntryHeader?> GetPostedByReferenceNumberAsync(
+        string referenceNumber,
+        DocumentType documentType,
+        CancellationToken cancellationToken = default);
+
     Task<(List<JournalEntryHeader> Items, int TotalCount)> GetAllAsync(
         string? search,
         DateTime? fromDate,
@@ -40,9 +39,6 @@ public interface IJournalEntryRepository
         int pageSize,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// قيود الأرصدة الافتتاحية فقط
-    /// </summary>
     Task<(List<JournalEntryHeader> Items, int TotalCount)> GetOpeningBalancesAsync(
         string? search,
         DateTime? fromDate,
@@ -52,12 +48,6 @@ public interface IJournalEntryRepository
         int pageSize,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// التحقق من وجود Opening Balance
-    /// لنفس السنة المالية والشركة والفرع.
-    /// يسمح النظام بمستند Opening Balance واحد فقط
-    /// لكل FiscalYear + Company + Branch.
-    /// </summary>
     Task<bool> ExistsOpeningBalanceAsync(
         Guid fiscalYearId,
         Guid? companyId,
