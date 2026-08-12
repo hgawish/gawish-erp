@@ -72,20 +72,59 @@ public class InventoryBalance : BaseEntity
 
     public void Decrease(decimal quantity)
     {
+        Decrease(quantity, null);
+    }
+
+    /// <summary>
+    /// Decreases stock and, when a historical unit cost is supplied,
+    /// removes that cost from the inventory value and recalculates the
+    /// remaining weighted-average cost. This is required for purchase
+    /// returns/reversals; ordinary sales continue to keep the current
+    /// average cost unchanged.
+    /// </summary>
+    public void Decrease(
+        decimal quantity,
+        decimal? historicalUnitCost)
+    {
         if (quantity <= 0)
             throw new ArgumentException(
                 "Quantity must be greater than zero.",
                 nameof(quantity));
 
+        if (historicalUnitCost is < 0)
+            throw new ArgumentException(
+                "Historical unit cost cannot be negative.",
+                nameof(historicalUnitCost));
+
         if (Quantity < quantity)
             throw new InvalidOperationException(
                 "Insufficient stock.");
+
+        var currentValue = Quantity * AverageCost;
 
         Quantity -= quantity;
 
         if (Quantity == 0)
         {
             AverageCost = 0;
+            return;
+        }
+
+        if (historicalUnitCost.HasValue)
+        {
+            var remainingValue =
+                currentValue - (quantity * historicalUnitCost.Value);
+
+            // Protect against tiny negative values caused by decimal
+            // rounding when the balance is nearly exhausted.
+            if (remainingValue < 0 && remainingValue > -0.01m)
+                remainingValue = 0;
+
+            if (remainingValue < 0)
+                throw new InvalidOperationException(
+                    "Inventory value cannot become negative during stock reversal.");
+
+            AverageCost = remainingValue / Quantity;
         }
     }
 }
