@@ -10,6 +10,7 @@ public sealed class CancelSalesCommandHandler
     : IRequestHandler<CancelSalesCommand, CancelSalesResponse>
 {
     private readonly ISalesRepository _salesRepository;
+    private readonly ISalesReturnRepository _salesReturnRepository;
     private readonly IInventoryService _inventoryService;
     private readonly IStockTransactionRepository _stockTransactionRepository;
     private readonly IJournalEntryRepository _journalEntryRepository;
@@ -18,6 +19,7 @@ public sealed class CancelSalesCommandHandler
 
     public CancelSalesCommandHandler(
         ISalesRepository salesRepository,
+        ISalesReturnRepository salesReturnRepository,
         IInventoryService inventoryService,
         IStockTransactionRepository stockTransactionRepository,
         IJournalEntryRepository journalEntryRepository,
@@ -25,6 +27,7 @@ public sealed class CancelSalesCommandHandler
         IMediator mediator)
     {
         _salesRepository = salesRepository;
+        _salesReturnRepository = salesReturnRepository;
         _inventoryService = inventoryService;
         _stockTransactionRepository = stockTransactionRepository;
         _journalEntryRepository = journalEntryRepository;
@@ -45,6 +48,7 @@ public sealed class CancelSalesCommandHandler
             throw new InvalidOperationException(
                 "Sales document not found.");
 
+        // A cancelled document must never be processed again.
         if (sales.Status == DocumentStatus.Cancelled)
             throw new InvalidOperationException(
                 "Sales document already cancelled.");
@@ -53,7 +57,21 @@ public sealed class CancelSalesCommandHandler
             throw new InvalidOperationException(
                 "Only posted sales can be cancelled.");
 
+        // A posted Sales Return already puts the returned quantity back into
+        // inventory and creates its accounting effect. Cancelling the original
+        // sale after that would reverse the sale again and corrupt stock/GL.
+        var hasPostedSalesReturn = _salesReturnRepository
+            .GetQueryable()
+            .Any(x =>
+                x.SalesId == sales.Id &&
+                x.Status == DocumentStatus.Posted);
+
+        if (hasPostedSalesReturn)
+            throw new InvalidOperationException(
+                $"Sales document {sales.DocumentNumber} cannot be cancelled because it has a posted Sales Return.");
+
         // Find the original posted Sales journal before changing the document.
+        // A journal that has already been reversed cannot be reversed again.
         var journalEntry = _journalEntryRepository
             .GetQueryable()
             .FirstOrDefault(x =>
@@ -64,10 +82,10 @@ public sealed class CancelSalesCommandHandler
 
         if (journalEntry is null)
             throw new InvalidOperationException(
-                $"Posted Sales journal entry not found for {sales.DocumentNumber}.");
+                $"Posted Sales journal entry not found for {sales.DocumentNumber}, or it has already been reversed.");
 
-        // Reverse inventory using the actual historical cost stored on the
-        // original Sale stock transaction, never the sales UnitPrice.
+        // Find the original Sale stock transactions. Cancellation must use the
+        // historical inventory cost, never the sales UnitPrice.
         var originalSaleTransactions =
             await _stockTransactionRepository.GetByReferenceAsync(
                 sales.Id,
@@ -111,8 +129,8 @@ public sealed class CancelSalesCommandHandler
             }
         }
 
-        // Reverse the original Sales journal. The existing reverse workflow
-        // creates and posts the opposite journal and marks the original as reversed.
+        // Reverse the original Sales journal. The reverse workflow creates and
+        // posts the opposite journal and marks the original journal as reversed.
         var reverseResult = await _mediator.Send(
             new ReverseJournalEntryCommand(journalEntry.Id),
             cancellationToken);
