@@ -3,16 +3,15 @@ using GawishERP.Domain.Entities;
 using GawishERP.Domain.Interfaces;
 using GawishERP.Infrastructure.Persistence.Repositories.Base;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using System.Data;
-using System.Data.Common;
 
 namespace GawishERP.Infrastructure.Persistence.Repositories;
 
 public sealed class NumberSeriesRepository
     : RepositoryBase<NumberSeries>, INumberSeriesRepository
 {
-    public NumberSeriesRepository(
-        ApplicationDbContext context)
+    public NumberSeriesRepository(ApplicationDbContext context)
         : base(context)
     {
     }
@@ -83,8 +82,8 @@ public sealed class NumberSeriesRepository
 
     /// <summary>
     /// Atomically increments CurrentNumber and returns the new value.
-    /// This deliberately bypasses EF change tracking for NumberSeries so
-    /// RowVersion is not part of the surrounding UnitOfWork concurrency check.
+    /// This bypasses EF change tracking for NumberSeries, preventing its
+    /// RowVersion from participating in the surrounding UnitOfWork update.
     /// </summary>
     public async Task<string> GetNextNumberAsync(
         DocumentType documentType,
@@ -140,9 +139,8 @@ public sealed class NumberSeriesRepository
             }
 
             var currentNumber = Convert.ToInt32(result);
-            var padding = series.Padding;
 
-            return $"{series.Prefix}{currentNumber.ToString().PadLeft(padding, '0')}";
+            return $"{series.Prefix}-{currentNumber.ToString().PadLeft(series.Padding, '0')}";
         }
         finally
         {
@@ -168,4 +166,11 @@ public sealed class NumberSeriesRepository
         numberSeries.Deactivate();
         UpdateEntity(numberSeries);
     }
+
+    public async Task<string> GetNextNumberAsync_UNUSED(
+        DocumentType documentType,
+        Guid? companyId = null,
+        Guid? branchId = null,
+        Guid? fiscalYearId = null)
+        => await GetNextNumberAsync(documentType, companyId, branchId, fiscalYearId);
 }
