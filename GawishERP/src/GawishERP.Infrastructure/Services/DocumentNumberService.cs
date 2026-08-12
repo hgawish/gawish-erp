@@ -1,4 +1,4 @@
-﻿using GawishERP.Application.Common.Interfaces;
+using GawishERP.Application.Common.Interfaces;
 using GawishERP.Domain.Common;
 using GawishERP.Domain.Interfaces;
 
@@ -33,12 +33,11 @@ public sealed class DocumentNumberService
                 $"Number Series for '{documentType}' was not found.");
         }
 
-        var documentNumber =
-            series.GenerateNextNumber();
-
-        _numberSeriesRepository.Update(series);
-
-        return documentNumber;
+        // GetByDocumentTypeAsync returns a tracked entity.
+        // EF Core automatically detects the CurrentNumber change,
+        // so explicitly calling Update() is unnecessary and can
+        // interfere with the RowVersion concurrency token.
+        return series.GenerateNextNumber();
     }
 
     // =========================================================
@@ -66,11 +65,8 @@ public sealed class DocumentNumberService
                 $"Number Series for '{documentType}' was not found.");
         }
 
-        var documentNumber =
-            series.GenerateNextNumber();
-
-        _numberSeriesRepository.Update(series);
-
-        return documentNumber;
+        // The repository query is tracked, therefore EF Core will
+        // persist CurrentNumber automatically on SaveChangesAsync().
+        return series.GenerateNextNumber();
     }
 }
