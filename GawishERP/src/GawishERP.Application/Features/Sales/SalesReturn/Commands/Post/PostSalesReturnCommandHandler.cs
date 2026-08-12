@@ -1,4 +1,4 @@
-﻿using GawishERP.Application.Common.Interfaces;
+using GawishERP.Application.Common.Interfaces;
 using GawishERP.Domain.Common;
 using GawishERP.Domain.Interfaces;
 using MediatR;
@@ -10,17 +10,20 @@ public sealed class PostSalesReturnCommandHandler
 {
     private readonly ISalesReturnRepository _salesReturnRepository;
     private readonly ISalesRepository _salesRepository;
+    private readonly IStockTransactionRepository _stockTransactionRepository;
     private readonly IInventoryService _inventoryService;
     private readonly IUnitOfWork _unitOfWork;
 
     public PostSalesReturnCommandHandler(
         ISalesReturnRepository salesReturnRepository,
         ISalesRepository salesRepository,
+        IStockTransactionRepository stockTransactionRepository,
         IInventoryService inventoryService,
         IUnitOfWork unitOfWork)
     {
         _salesReturnRepository = salesReturnRepository;
         _salesRepository = salesRepository;
+        _stockTransactionRepository = stockTransactionRepository;
         _inventoryService = inventoryService;
         _unitOfWork = unitOfWork;
     }
@@ -80,8 +83,19 @@ public sealed class PostSalesReturnCommandHandler
                 "Original Sales document must be posted.");
 
         //=========================================================
-        // Validate Return Lines
+        // Load Historical Inventory Cost From Original Sale
         //=========================================================
+
+        var saleStockTransactions =
+            await _stockTransactionRepository.GetByReferenceAsync(
+                sales.Id,
+                StockTransactionType.Sale);
+
+        //=========================================================
+        // Validate Return Lines And Resolve Historical Cost
+        //=========================================================
+
+        var historicalCosts = new Dictionary<Guid, decimal>();
 
         foreach (var line in salesReturn.Lines)
         {
@@ -136,6 +150,39 @@ public sealed class PostSalesReturnCommandHandler
                     $"Previously returned: {previouslyReturnedQuantity}, " +
                     $"Current return: {line.Quantity}.");
             }
+
+            //=====================================================
+            // Resolve Historical Cost
+            //=====================================================
+
+            var matchingTransactions =
+                saleStockTransactions
+                    .Where(x =>
+                        x.ProductId == line.ProductId &&
+                        x.WarehouseId == salesReturn.WarehouseId)
+                    .ToList();
+
+            if (matchingTransactions.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    $"Historical inventory cost could not be found for product {line.ProductId} " +
+                    $"in warehouse {salesReturn.WarehouseId}.");
+            }
+
+            var distinctCosts =
+                matchingTransactions
+                    .Select(x => x.UnitCost)
+                    .Distinct()
+                    .ToList();
+
+            if (distinctCosts.Count > 1)
+            {
+                throw new InvalidOperationException(
+                    $"Multiple historical inventory costs were found for product {line.ProductId} " +
+                    "on the original Sales document. The return cost cannot be determined safely.");
+            }
+
+            historicalCosts[line.Id] = distinctCosts[0];
         }
 
         //=========================================================
@@ -144,11 +191,14 @@ public sealed class PostSalesReturnCommandHandler
 
         foreach (var line in salesReturn.Lines)
         {
+            var historicalUnitCost =
+                historicalCosts[line.Id];
+
             await _inventoryService.ReverseSaleAsync(
                 line.ProductId,
                 salesReturn.WarehouseId,
                 line.Quantity,
-                line.UnitPrice,
+                historicalUnitCost,
                 salesReturn.DocumentDate,
                 salesReturn.Id,
                 salesReturn.DocumentNumber,
