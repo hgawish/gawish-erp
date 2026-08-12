@@ -166,11 +166,4 @@ public sealed class NumberSeriesRepository
         numberSeries.Deactivate();
         UpdateEntity(numberSeries);
     }
-
-    public async Task<string> GetNextNumberAsync_UNUSED(
-        DocumentType documentType,
-        Guid? companyId = null,
-        Guid? branchId = null,
-        Guid? fiscalYearId = null)
-        => await GetNextNumberAsync(documentType, companyId, branchId, fiscalYearId);
 }
