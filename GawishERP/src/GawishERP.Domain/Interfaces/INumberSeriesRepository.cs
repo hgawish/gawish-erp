@@ -23,9 +23,8 @@ public interface INumberSeriesRepository
     Task<bool> ExistsAsync(Guid id);
 
     /// <summary>
-    /// Generates the next document number
-    /// and increments CurrentNumber.
-    /// SaveChanges is performed by UnitOfWork.
+    /// Atomically generates the next document number and increments CurrentNumber in the database.
+    /// The NumberSeries entity is not tracked as Modified by this operation.
     /// </summary>
     Task<string> GetNextNumberAsync(
         DocumentType documentType,
