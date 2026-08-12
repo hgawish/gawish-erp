@@ -27,6 +27,10 @@ public class SalesReturnHeader : BaseDocumentEntity
     public IReadOnlyCollection<SalesReturnLine> Lines =>
         _lines.AsReadOnly();
 
+    //=========================================================
+    // Constructor
+    //=========================================================
+
     private SalesReturnHeader()
     {
     }
@@ -76,6 +80,10 @@ public class SalesReturnHeader : BaseDocumentEntity
         Status = DocumentStatus.Draft;
     }
 
+    //=========================================================
+    // Lines
+    //=========================================================
+
     public void AddLine(
         Guid salesLineId,
         Guid productId,
@@ -86,6 +94,22 @@ public class SalesReturnHeader : BaseDocumentEntity
         if (Status != DocumentStatus.Draft)
             throw new InvalidOperationException(
                 "Cannot modify posted document.");
+
+        if (salesLineId == Guid.Empty)
+            throw new ArgumentException(nameof(salesLineId));
+
+        if (productId == Guid.Empty)
+            throw new ArgumentException(nameof(productId));
+
+        if (quantity <= 0)
+            throw new ArgumentException(
+                "Quantity must be greater than zero.",
+                nameof(quantity));
+
+        if (unitPrice < 0)
+            throw new ArgumentException(
+                "Unit price cannot be negative.",
+                nameof(unitPrice));
 
         var line = new SalesReturnLine(
             salesLineId,
@@ -101,7 +125,12 @@ public class SalesReturnHeader : BaseDocumentEntity
 
     public void RemoveLine(Guid lineId)
     {
-        var line = _lines.FirstOrDefault(x => x.Id == lineId);
+        if (Status != DocumentStatus.Draft)
+            throw new InvalidOperationException(
+                "Cannot modify posted document.");
+
+        var line = _lines.FirstOrDefault(
+            x => x.Id == lineId);
 
         if (line is null)
             return;
@@ -111,24 +140,66 @@ public class SalesReturnHeader : BaseDocumentEntity
         Recalculate();
     }
 
+    //=========================================================
+    // Recalculate
+    //=========================================================
+
     private void Recalculate()
     {
-        TotalAmount = _lines.Sum(x => x.LineTotal);
+        TotalAmount = _lines.Sum(
+            x => x.LineTotal);
     }
+
+    //=========================================================
+    // Post
+    //=========================================================
+    //
+    // Sales Return has a simplified workflow:
+    //
+    // Draft → Posted
+    //
+    // Unlike Sales / Purchase documents, Sales Return
+    // does not require Submit → Approve before posting.
+    //
+    //=========================================================
 
     public override void Post()
     {
+        if (Status == DocumentStatus.Posted)
+            throw new InvalidOperationException(
+                "Sales Return already posted.");
+
+        if (Status == DocumentStatus.Cancelled)
+            throw new InvalidOperationException(
+                "Cancelled Sales Return cannot be posted.");
+
+        if (Status != DocumentStatus.Draft)
+            throw new InvalidOperationException(
+                "Only draft Sales Returns can be posted.");
+
         if (!_lines.Any())
             throw new InvalidOperationException(
                 "Document has no lines.");
 
         Recalculate();
 
-        base.Post();
+        Status = DocumentStatus.Posted;
     }
+
+    //=========================================================
+    // Cancel
+    //=========================================================
 
     public override void Cancel()
     {
-        base.Cancel();
+        if (Status == DocumentStatus.Posted)
+            throw new InvalidOperationException(
+                "Posted Sales Return cannot be cancelled.");
+
+        if (Status == DocumentStatus.Cancelled)
+            throw new InvalidOperationException(
+                "Sales Return already cancelled.");
+
+        Status = DocumentStatus.Cancelled;
     }
 }
