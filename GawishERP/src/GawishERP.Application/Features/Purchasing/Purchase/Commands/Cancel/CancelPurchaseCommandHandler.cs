@@ -53,13 +53,15 @@ public sealed class CancelPurchaseCommandHandler
             throw new InvalidOperationException(
                 "Only posted purchase can be cancelled.");
 
-        // Find the original posted Purchase journal before changing the
-        // document. A reversed journal must never be reversed again.
+        // Purchase posting stores the business document number in
+        // JournalEntryHeader.DocumentNumber. The accounting ReferenceNumber
+        // is the supplier invoice/reference number and therefore must not be
+        // used to locate the original Purchase journal.
         var journalEntry = _journalEntryRepository
             .GetQueryable()
             .FirstOrDefault(x =>
                 x.DocumentType == DocumentType.Purchase &&
-                x.ReferenceNumber == purchase.DocumentNumber &&
+                x.DocumentNumber == purchase.DocumentNumber &&
                 x.Status == DocumentStatus.Posted &&
                 !x.IsReversed);
 
