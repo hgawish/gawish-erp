@@ -1,4 +1,4 @@
-﻿using GawishERP.Domain.Common;
+using GawishERP.Domain.Common;
 using GawishERP.Domain.Entities;
 
 namespace GawishERP.Infrastructure.Services;
@@ -10,16 +10,17 @@ public sealed partial class LedgerPostingService
         JournalEntryLine line,
         CancellationToken cancellationToken)
     {
-        var balance =
+        var existingBalance =
             await _accountBalanceRepository.GetAsync(
                 line.AccountId,
                 header.FiscalYearId,
                 header.CompanyId,
                 header.BranchId);
 
-        var isNewBalance = balance is null;
+        AccountBalance balance;
+        var isNewBalance = existingBalance is null;
 
-        if (isNewBalance)
+        if (existingBalance is null)
         {
             balance = new AccountBalance(
                 line.AccountId,
@@ -28,6 +29,10 @@ public sealed partial class LedgerPostingService
                 header.BranchId);
 
             _accountBalanceRepository.Add(balance);
+        }
+        else
+        {
+            balance = existingBalance;
         }
 
         if (header.DocumentType == DocumentType.OpeningBalance)
