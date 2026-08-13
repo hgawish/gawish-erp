@@ -55,9 +55,13 @@ public abstract class BaseDocumentEntity : BaseEntity
 
     public virtual void Cancel()
     {
-        if (Status == DocumentStatus.Posted)
+        if (Status == DocumentStatus.Cancelled)
             throw new InvalidOperationException(
-                "Posted documents cannot be cancelled.");
+                "Document is already cancelled.");
+
+        if (Status != DocumentStatus.Posted)
+            throw new InvalidOperationException(
+                "Only posted documents can be cancelled.");
 
         Status = DocumentStatus.Cancelled;
     }

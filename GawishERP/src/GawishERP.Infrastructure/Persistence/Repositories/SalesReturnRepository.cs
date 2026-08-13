@@ -132,14 +132,16 @@ public class SalesReturnRepository : ISalesReturnRepository
         CancellationToken cancellationToken = default)
     {
         return await _context.SalesReturnHeaders
-            .Where(x =>
-                x.SalesId == salesId &&
-                x.Status == DocumentStatus.Posted &&
-                x.Id != excludeReturnId)
-            .SelectMany(x => x.Lines)
-            .Where(x => x.SalesLineId == salesLineId)
+            .Where(header =>
+                header.Id != excludeReturnId &&
+                header.SalesId == salesId &&
+                header.Status == DocumentStatus.Posted)
+            .SelectMany(header =>
+                header.Lines
+                    .Where(line =>
+                        line.SalesLineId == salesLineId))
             .SumAsync(
-                x => (decimal?)x.Quantity,
+                line => (decimal?)line.Quantity,
                 cancellationToken) ?? 0m;
     }
 

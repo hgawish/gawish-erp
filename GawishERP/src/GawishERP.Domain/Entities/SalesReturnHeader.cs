@@ -153,15 +153,6 @@ public class SalesReturnHeader : BaseDocumentEntity
     //=========================================================
     // Post
     //=========================================================
-    //
-    // Sales Return has a simplified workflow:
-    //
-    // Draft → Posted
-    //
-    // Unlike Sales / Purchase documents, Sales Return
-    // does not require Submit → Approve before posting.
-    //
-    //=========================================================
 
     public override void Post()
     {
@@ -192,13 +183,13 @@ public class SalesReturnHeader : BaseDocumentEntity
 
     public override void Cancel()
     {
-        if (Status == DocumentStatus.Posted)
-            throw new InvalidOperationException(
-                "Posted Sales Return cannot be cancelled.");
-
         if (Status == DocumentStatus.Cancelled)
             throw new InvalidOperationException(
                 "Sales Return already cancelled.");
+
+        if (Status != DocumentStatus.Posted)
+            throw new InvalidOperationException(
+                "Only posted Sales Returns can be cancelled.");
 
         Status = DocumentStatus.Cancelled;
     }
