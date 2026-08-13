@@ -1,4 +1,4 @@
-﻿using GawishERP.Application.Common.Interfaces;
+using GawishERP.Application.Common.Interfaces;
 using GawishERP.Application.Features.Accounting.JournalEntries.Commands.Reverse;
 using GawishERP.Domain.Common;
 using GawishERP.Domain.Interfaces;
@@ -11,6 +11,7 @@ public sealed class CancelSalesReturnHandler
 {
     private readonly ISalesReturnRepository _salesReturnRepository;
     private readonly IJournalEntryRepository _journalEntryRepository;
+    private readonly IStockTransactionRepository _stockTransactionRepository;
     private readonly IInventoryService _inventoryService;
     private readonly IMediator _mediator;
     private readonly IUnitOfWork _unitOfWork;
@@ -18,12 +19,14 @@ public sealed class CancelSalesReturnHandler
     public CancelSalesReturnHandler(
         ISalesReturnRepository salesReturnRepository,
         IJournalEntryRepository journalEntryRepository,
+        IStockTransactionRepository stockTransactionRepository,
         IInventoryService inventoryService,
         IMediator mediator,
         IUnitOfWork unitOfWork)
     {
         _salesReturnRepository = salesReturnRepository;
         _journalEntryRepository = journalEntryRepository;
+        _stockTransactionRepository = stockTransactionRepository;
         _inventoryService = inventoryService;
         _mediator = mediator;
         _unitOfWork = unitOfWork;
@@ -70,14 +73,30 @@ public sealed class CancelSalesReturnHandler
                 "Sales return journal entry has already been reversed.");
 
         //=====================================================
+        // Get the inventory transactions created by the
+        // original Sales Return posting.
+        //=====================================================
+        //
+        // Their UnitCost is the historical inventory cost used
+        // when the return was posted. It is deliberately NOT
+        // the customer's selling/refund price (UnitPrice).
+        //=====================================================
+
+        var salesReturnTransactions =
+            await _stockTransactionRepository.GetByReferenceAsync(
+                salesReturn.Id,
+                StockTransactionType.SalesReturn);
+
+        if (salesReturnTransactions.Count == 0)
+            throw new InvalidOperationException(
+                $"Sales return inventory transactions were not found for document '{salesReturn.DocumentNumber}'.");
+
+        //=====================================================
         // Reverse Accounting
         //=====================================================
         //
         // Reuse the existing ReverseJournalEntryCommandHandler
         // instead of duplicating journal reversal logic here.
-        //
-        // The existing handler guarantees that a posted journal
-        // entry cannot be reversed more than once.
         //=====================================================
 
         var reverseResult =
@@ -98,16 +117,31 @@ public sealed class CancelSalesReturnHandler
         //
         // Sales Return originally increased inventory.
         // Cancellation therefore decreases inventory using
-        // the same historical unit cost.
+        // the SAME historical UnitCost that was recorded by the
+        // original Sales Return stock transaction.
         //=====================================================
 
         foreach (var line in salesReturn.Lines)
         {
+            var originalTransaction =
+                salesReturnTransactions.FirstOrDefault(
+                    x =>
+                        x.ProductId == line.ProductId &&
+                        x.WarehouseId == salesReturn.WarehouseId);
+
+            if (originalTransaction is null)
+                throw new InvalidOperationException(
+                    $"Original sales return inventory transaction was not found for product '{line.ProductId}'.");
+
+            if (originalTransaction.Quantity != line.Quantity)
+                throw new InvalidOperationException(
+                    $"Sales return inventory transaction quantity does not match document line for product '{line.ProductId}'.");
+
             await _inventoryService.ReverseSalesReturnAsync(
                 line.ProductId,
                 salesReturn.WarehouseId,
                 line.Quantity,
-                line.UnitPrice,
+                originalTransaction.UnitCost,
                 salesReturn.DocumentDate,
                 salesReturn.Id,
                 salesReturn.DocumentNumber,
