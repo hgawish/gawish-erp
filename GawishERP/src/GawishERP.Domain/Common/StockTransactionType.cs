@@ -1,4 +1,4 @@
-﻿namespace GawishERP.Domain.Common;
+namespace GawishERP.Domain.Common;
 
 public enum StockTransactionType
 {
@@ -26,5 +26,7 @@ public enum StockTransactionType
 
     StockCountIncrease = 12,
 
-    StockCountDecrease = 13
+    StockCountDecrease = 13,
+
+    PurchaseReversal = 14
 }
