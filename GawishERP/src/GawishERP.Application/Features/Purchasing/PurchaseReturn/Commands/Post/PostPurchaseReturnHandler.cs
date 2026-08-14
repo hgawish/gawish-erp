@@ -29,89 +29,70 @@ public sealed class PostPurchaseReturnHandler
         PostPurchaseReturnCommand request,
         CancellationToken cancellationToken)
     {
-        var purchaseReturn =
-            await _purchaseReturnRepository.GetByIdWithLinesAsync(
-                request.PurchaseReturnId,
-                cancellationToken);
+        var purchaseReturn = await _purchaseReturnRepository.GetByIdWithLinesAsync(
+            request.PurchaseReturnId,
+            cancellationToken);
 
         if (purchaseReturn is null)
-            throw new InvalidOperationException(
-                "Purchase Return not found.");
+            throw new InvalidOperationException("Purchase Return not found.");
 
         if (purchaseReturn.Status == DocumentStatus.Posted)
-            throw new InvalidOperationException(
-                "Purchase Return already posted.");
+            throw new InvalidOperationException("Purchase Return already posted.");
 
         if (purchaseReturn.Status == DocumentStatus.Cancelled)
-            throw new InvalidOperationException(
-                "Cancelled Purchase Return cannot be posted.");
+            throw new InvalidOperationException("Cancelled Purchase Return cannot be posted.");
 
-        var purchase =
-            await _purchaseRepository.GetByIdWithLinesAsync(
-                purchaseReturn.PurchaseId,
-                cancellationToken);
+        var purchase = await _purchaseRepository.GetByIdWithLinesAsync(
+            purchaseReturn.PurchaseId,
+            cancellationToken);
 
         if (purchase is null)
-            throw new InvalidOperationException(
-                "Original Purchase not found.");
+            throw new InvalidOperationException("Original Purchase not found.");
 
         if (purchase.Status != DocumentStatus.Posted)
-            throw new InvalidOperationException(
-                "Original Purchase must be posted.");
-
-        //=========================================================
-        // Quantity Validation
-        //=========================================================
+            throw new InvalidOperationException("Original Purchase must be posted.");
 
         foreach (var returnLine in purchaseReturn.Lines)
         {
-            var purchaseLine =
-                purchase.Lines.FirstOrDefault(
-                    x => x.Id == returnLine.PurchaseLineId);
+            var purchaseLine = purchase.Lines.FirstOrDefault(
+                x => x.Id == returnLine.PurchaseLineId);
 
             if (purchaseLine is null)
-                throw new InvalidOperationException(
-                    "Original Purchase Line not found.");
+                throw new InvalidOperationException("Original Purchase Line not found.");
 
-            var previouslyReturnedQuantity =
-                await _purchaseReturnRepository.GetReturnedQuantityAsync(
-                    returnLine.PurchaseLineId,
-                    cancellationToken);
+            var previouslyReturnedQuantity = await _purchaseReturnRepository.GetReturnedQuantityAsync(
+                returnLine.PurchaseLineId,
+                cancellationToken);
 
-            var totalReturnedQuantity =
-                previouslyReturnedQuantity + returnLine.Quantity;
+            var totalReturnedQuantity = previouslyReturnedQuantity + returnLine.Quantity;
 
             if (totalReturnedQuantity > purchaseLine.Quantity)
-            {
                 throw new InvalidOperationException(
                     $"Total returned quantity ({totalReturnedQuantity}) " +
                     $"exceeds purchased quantity ({purchaseLine.Quantity}) " +
                     $"for product {purchaseLine.ProductId}.");
-            }
         }
 
-        //=========================================================
-        // Change document status
-        //=========================================================
+        await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
-        purchaseReturn.Post();
+        try
+        {
+            purchaseReturn.Post();
 
-        //=========================================================
-        // Inventory + Accounting Posting
-        //=========================================================
+            await _purchaseReturnPostingService.PostPurchaseReturnAsync(
+                purchaseReturn,
+                cancellationToken);
 
-        await _purchaseReturnPostingService.PostPurchaseReturnAsync(
-            purchaseReturn,
-            cancellationToken);
+            _purchaseReturnRepository.Update(purchaseReturn);
 
-        //=========================================================
-        // Persist Purchase Return
-        //=========================================================
-
-        _purchaseReturnRepository.Update(purchaseReturn);
-
-        await _unitOfWork.SaveChangesAsync(
-            cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await _unitOfWork.CommitTransactionAsync(cancellationToken);
+        }
+        catch
+        {
+            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+            throw;
+        }
 
         return new PostPurchaseReturnResponse
         {
