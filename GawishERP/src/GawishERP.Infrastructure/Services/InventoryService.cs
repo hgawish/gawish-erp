@@ -1,4 +1,4 @@
-﻿using GawishERP.Application.Common.Interfaces;
+using GawishERP.Application.Common.Interfaces;
 using GawishERP.Application.Common.Inventory;
 using GawishERP.Domain.Common;
 using GawishERP.Domain.Entities;
@@ -51,7 +51,7 @@ public class InventoryService : IInventoryService
         DateTime transactionDate, Guid referenceId, string referenceNumber,
         string? notes, CancellationToken cancellationToken = default)
     {
-        return await DecreaseStockAsync(StockTransactionType.PurchaseReturn, productId, warehouseId,
+        return await DecreaseStockAsync(StockTransactionType.PurchaseReversal, productId, warehouseId,
             quantity, transactionDate, referenceNumber, referenceId, notes, unitCost, cancellationToken);
     }
 
@@ -200,13 +200,19 @@ public class InventoryService : IInventoryService
         var actualUnitCost = historicalUnitCost ?? balance.AverageCost;
         var totalCost = quantity * actualUnitCost;
 
-        // Purchase returns/reversals remove a historical purchase layer, so the
-        // remaining weighted-average cost must be recalculated. Sales and other
+        // Purchase returns and purchase reversals remove a historical purchase layer,
+        // so the remaining weighted-average cost must be recalculated. Sales and other
         // decreases continue to preserve the current average cost.
-        if (transactionType == StockTransactionType.PurchaseReturn && historicalUnitCost.HasValue)
+        if ((transactionType == StockTransactionType.PurchaseReturn ||
+             transactionType == StockTransactionType.PurchaseReversal) &&
+            historicalUnitCost.HasValue)
+        {
             balance.Decrease(quantity, actualUnitCost);
+        }
         else
+        {
             balance.Decrease(quantity);
+        }
 
         _balanceRepository.Update(balance);
 
