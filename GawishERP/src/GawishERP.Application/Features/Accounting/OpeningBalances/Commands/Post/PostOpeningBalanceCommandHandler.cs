@@ -1,4 +1,4 @@
-﻿using GawishERP.Application.Common.Interfaces;
+using GawishERP.Application.Common.Interfaces;
 using GawishERP.Application.Common.Results;
 using GawishERP.Domain.Common;
 using GawishERP.Domain.Interfaces;
@@ -10,13 +10,19 @@ public sealed class PostOpeningBalanceCommandHandler
     : IRequestHandler<PostOpeningBalanceCommand, Result<Guid>>
 {
     private readonly IJournalEntryRepository _journalEntryRepository;
+    private readonly IFiscalYearRepository _fiscalYearRepository;
+    private readonly ILedgerPostingService _ledgerPostingService;
     private readonly IUnitOfWork _unitOfWork;
 
     public PostOpeningBalanceCommandHandler(
         IJournalEntryRepository journalEntryRepository,
+        IFiscalYearRepository fiscalYearRepository,
+        ILedgerPostingService ledgerPostingService,
         IUnitOfWork unitOfWork)
     {
         _journalEntryRepository = journalEntryRepository;
+        _fiscalYearRepository = fiscalYearRepository;
+        _ledgerPostingService = ledgerPostingService;
         _unitOfWork = unitOfWork;
     }
 
@@ -24,10 +30,6 @@ public sealed class PostOpeningBalanceCommandHandler
         PostOpeningBalanceCommand request,
         CancellationToken cancellationToken)
     {
-        //=========================================================
-        // Load Journal Entry WITH Lines
-        //=========================================================
-
         var journalEntry =
             await _journalEntryRepository.GetByIdWithLinesAsync(
                 request.Id,
@@ -42,62 +44,51 @@ public sealed class PostOpeningBalanceCommandHandler
                     ErrorType.NotFound));
         }
 
-        //=========================================================
-        // Continue Workflow According To Current Status
-        //=========================================================
-
-        switch (journalEntry.Status)
+        if (journalEntry.Status == DocumentStatus.Posted)
         {
-            case DocumentStatus.Draft:
-
-                // Draft → Submitted
-                journalEntry.Submit();
-
-                // Submitted → Approved
-                journalEntry.Approve();
-
-                // Approved → Posted
-                journalEntry.Post();
-
-                break;
-
-            case DocumentStatus.Submitted:
-
-                // Submitted → Approved
-                journalEntry.Approve();
-
-                // Approved → Posted
-                journalEntry.Post();
-
-                break;
-
-            case DocumentStatus.Approved:
-
-                // Approved → Posted
-                journalEntry.Post();
-
-                break;
-
-            case DocumentStatus.Posted:
-
-                return Result.Failure<Guid>(
-                    new Error(
-                        "OpeningBalance.AlreadyPosted",
-                        "Opening Balance is already posted.",
-                        ErrorType.Conflict));
-
-            default:
-
-                return Result.Failure<Guid>(
-                    new Error(
-                        "OpeningBalance.InvalidStatus",
-                        $"Opening Balance cannot be posted from status '{journalEntry.Status}'.",
-                        ErrorType.Validation));
+            return Result.Failure<Guid>(
+                new Error(
+                    "OpeningBalance.AlreadyPosted",
+                    "Opening Balance is already posted.",
+                    ErrorType.Conflict));
         }
 
-        //=========================================================
-        // Save
-        //=========================================================
+        if (journalEntry.Status != DocumentStatus.Approved)
+        {
+            return Result.Failure<Guid>(
+                new Error(
+                    "OpeningBalance.NotApproved",
+                    "Opening Balance must be approved before posting.",
+                    ErrorType.Validation));
+        }
+
+        var fiscalYear =
+            await _fiscalYearRepository.GetByIdAsync(
+                journalEntry.FiscalYearId);
+
+        if (fiscalYear is null)
+        {
+            return Result.Failure<Guid>(
+                new Error(
+                    "FiscalYear.NotFound",
+                    "Fiscal Year was not found.",
+                    ErrorType.NotFound));
+        }
+
+        if (!fiscalYear.IsOpen)
+        {
+            return Result.Failure<Guid>(
+                new Error(
+                    "FiscalYear.Closed",
+                    "Fiscal Year is closed.",
+                    ErrorType.Validation));
+        }
+
+        journalEntry.Post();
+
+        await _ledgerPostingService.PostAsync(
+            journalEntry,
+            cancellationToken);
 
         _journalEntryRepository.Update(journalEntry);
 
