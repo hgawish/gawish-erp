@@ -1,5 +1,6 @@
 using GawishERP.Domain.Common;
 using GawishERP.Domain.Interfaces;
+using GawishERP.Application.Features.Accounting.Reports.Profit_and_Loss.DTOs;
 using MediatR;
 
 namespace GawishERP.Application.Features.Accounting.Reports.Profit_and_Loss;
@@ -58,7 +59,7 @@ public sealed class GetProfitAndLossQueryHandler
             if (amount == 0m)
                 continue;
 
-            var line = new DTOs.ProfitAndLossLineDto
+            var line = new ProfitAndLossLineDto
             {
                 AccountId = account.Id,
                 AccountCode = account.Code,
