@@ -1,4 +1,5 @@
-﻿using GawishERP.Application.Features.Sales.SalesDeliveries.Commands.ApproveSalesDelivery;
+using GawishERP.Application.Features.Sales.SalesDeliveries.Commands.ApproveSalesDelivery;
+using GawishERP.Application.Features.Sales.SalesDeliveries.Commands.CancelSalesDelivery;
 using GawishERP.Application.Features.Sales.SalesDeliveries.Commands.CreateSalesDelivery;
 using GawishERP.Application.Features.Sales.SalesDeliveries.Commands.PostSalesDelivery;
 using GawishERP.Application.Features.Sales.SalesDeliveries.Commands.SubmitSalesDelivery;
@@ -129,5 +130,21 @@ public sealed class SalesDeliveriesController : ControllerBase
             id = result,
             status = "Posted"
         });
+    }
+
+    //=========================================================
+    // POST: api/SalesDeliveries/{id}/cancel
+    //=========================================================
+
+    [HttpPost("{id:guid}/cancel")]
+    public async Task<IActionResult> Cancel(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(
+            new CancelSalesDeliveryCommand(id),
+            cancellationToken);
+
+        return Ok(result);
     }
 }
