@@ -10,6 +10,7 @@ public sealed class CreateCustomerReceiptCommandHandler
     : IRequestHandler<CreateCustomerReceiptCommand, CreateCustomerReceiptResponse>
 {
     private readonly ICustomerRepository _customerRepository;
+    private readonly ISalesRepository _salesRepository;
     private readonly IAccountRepository _accountRepository;
     private readonly IFiscalYearRepository _fiscalYearRepository;
     private readonly IJournalEntryRepository _journalEntryRepository;
@@ -19,6 +20,7 @@ public sealed class CreateCustomerReceiptCommandHandler
 
     public CreateCustomerReceiptCommandHandler(
         ICustomerRepository customerRepository,
+        ISalesRepository salesRepository,
         IAccountRepository accountRepository,
         IFiscalYearRepository fiscalYearRepository,
         IJournalEntryRepository journalEntryRepository,
@@ -27,6 +29,7 @@ public sealed class CreateCustomerReceiptCommandHandler
         IUnitOfWork unitOfWork)
     {
         _customerRepository = customerRepository;
+        _salesRepository = salesRepository;
         _accountRepository = accountRepository;
         _fiscalYearRepository = fiscalYearRepository;
         _journalEntryRepository = journalEntryRepository;
@@ -71,6 +74,55 @@ public sealed class CreateCustomerReceiptCommandHandler
         if (customerAccount is null || !customerAccount.IsActive || !customerAccount.IsPostingAccount)
             throw new InvalidOperationException("Customer accounting account is invalid.");
 
+        string referenceNumber = request.ReferenceNumber;
+
+        if (request.SalesId.HasValue)
+        {
+            if (request.SalesId.Value == Guid.Empty)
+                throw new InvalidOperationException("Sales Id is invalid.");
+
+            var sales = await _salesRepository.GetByIdAsync(request.SalesId.Value, cancellationToken);
+
+            if (sales is null)
+                throw new InvalidOperationException("Sales invoice not found.");
+
+            if (sales.Status != DocumentStatus.Posted)
+                throw new InvalidOperationException("Only posted sales invoices can be settled.");
+
+            if (sales.CustomerId != request.CustomerId)
+                throw new InvalidOperationException("Sales invoice belongs to a different customer.");
+
+            var settledAmount = _journalEntryRepository
+                .GetQueryable()
+                .Where(j =>
+                    j.Status == DocumentStatus.Posted &&
+                    !j.IsReversed &&
+                    j.ReferenceNumber == sales.DocumentNumber)
+                .SelectMany(j => j.Lines)
+                .Where(l =>
+                    l.AccountId == customerAccount.Id &&
+                    l.Credit > 0 &&
+                    l.Description == "Customer Receipt - Customer")
+                .Select(l => l.Credit)
+                .ToList()
+                .Sum();
+
+            var outstanding = sales.NetTotal - settledAmount;
+
+            if (outstanding <= 0)
+                throw new InvalidOperationException("Sales invoice is already fully settled.");
+
+            if (request.Amount > outstanding)
+            {
+                throw new InvalidOperationException(
+                    $"Receipt amount ({request.Amount:0.00}) exceeds outstanding amount ({outstanding:0.00}) for sales invoice {sales.DocumentNumber}.");
+            }
+
+            // A receipt linked to a sales invoice uses the invoice document number
+            // as its accounting reference so the settlement remains traceable.
+            referenceNumber = sales.DocumentNumber;
+        }
+
         var documentNumber = await _documentNumberService.GenerateAsync(
             DocumentType.JournalEntry,
             cancellationToken);
@@ -80,7 +132,7 @@ public sealed class CreateCustomerReceiptCommandHandler
             request.TransactionDate,
             request.FiscalYearId,
             DocumentType.JournalEntry,
-            string.IsNullOrWhiteSpace(request.ReferenceNumber) ? documentNumber : request.ReferenceNumber,
+            string.IsNullOrWhiteSpace(referenceNumber) ? documentNumber : referenceNumber,
             request.Notes,
             request.CompanyId,
             request.BranchId);
@@ -114,7 +166,9 @@ public sealed class CreateCustomerReceiptCommandHandler
             Id = journalEntry.Id,
             DocumentNumber = journalEntry.DocumentNumber,
             Status = journalEntry.Status.ToString(),
-            Message = "Customer receipt posted successfully."
+            Message = request.SalesId.HasValue
+                ? "Customer receipt posted and linked to sales invoice successfully."
+                : "Customer receipt posted successfully."
         };
     }
 }
