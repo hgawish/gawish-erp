@@ -10,5 +10,6 @@ public sealed record CreateCustomerReceiptCommand(
     DateTime TransactionDate,
     string ReferenceNumber,
     string? Notes,
+    Guid? SalesId = null,
     Guid? CompanyId = null,
     Guid? BranchId = null) : IRequest<CreateCustomerReceiptResponse>;
