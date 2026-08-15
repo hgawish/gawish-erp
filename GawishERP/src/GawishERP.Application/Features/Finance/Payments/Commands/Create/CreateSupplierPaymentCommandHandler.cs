@@ -10,6 +10,7 @@ public sealed class CreateSupplierPaymentCommandHandler
     : IRequestHandler<CreateSupplierPaymentCommand, CreateSupplierPaymentResponse>
 {
     private readonly ISupplierRepository _supplierRepository;
+    private readonly IPurchaseRepository _purchaseRepository;
     private readonly IAccountRepository _accountRepository;
     private readonly IFiscalYearRepository _fiscalYearRepository;
     private readonly IJournalEntryRepository _journalEntryRepository;
@@ -19,6 +20,7 @@ public sealed class CreateSupplierPaymentCommandHandler
 
     public CreateSupplierPaymentCommandHandler(
         ISupplierRepository supplierRepository,
+        IPurchaseRepository purchaseRepository,
         IAccountRepository accountRepository,
         IFiscalYearRepository fiscalYearRepository,
         IJournalEntryRepository journalEntryRepository,
@@ -27,6 +29,7 @@ public sealed class CreateSupplierPaymentCommandHandler
         IUnitOfWork unitOfWork)
     {
         _supplierRepository = supplierRepository;
+        _purchaseRepository = purchaseRepository;
         _accountRepository = accountRepository;
         _fiscalYearRepository = fiscalYearRepository;
         _journalEntryRepository = journalEntryRepository;
@@ -71,6 +74,53 @@ public sealed class CreateSupplierPaymentCommandHandler
         if (supplierAccount is null || !supplierAccount.IsActive || !supplierAccount.IsPostingAccount)
             throw new InvalidOperationException("Supplier accounting account is invalid.");
 
+        string referenceNumber = request.ReferenceNumber;
+
+        if (request.PurchaseId.HasValue)
+        {
+            if (request.PurchaseId.Value == Guid.Empty)
+                throw new InvalidOperationException("Purchase Id is invalid.");
+
+            var purchase = await _purchaseRepository.GetByIdAsync(request.PurchaseId.Value, cancellationToken);
+
+            if (purchase is null)
+                throw new InvalidOperationException("Purchase invoice not found.");
+
+            if (purchase.Status != DocumentStatus.Posted)
+                throw new InvalidOperationException("Only posted purchase invoices can be settled.");
+
+            if (purchase.SupplierId != request.SupplierId)
+                throw new InvalidOperationException("Purchase invoice belongs to a different supplier.");
+
+            var settledAmount = _journalEntryRepository
+                .GetQueryable()
+                .Where(j =>
+                    j.Status == DocumentStatus.Posted &&
+                    !j.IsReversed &&
+                    j.ReferenceNumber == purchase.DocumentNumber)
+                .SelectMany(j => j.Lines)
+                .Where(l =>
+                    l.AccountId == supplierAccount.Id &&
+                    l.Debit > 0 &&
+                    l.Description == "Supplier Payment - Supplier")
+                .Select(l => l.Debit)
+                .ToList()
+                .Sum();
+
+            var outstanding = purchase.NetTotal - settledAmount;
+
+            if (outstanding <= 0)
+                throw new InvalidOperationException("Purchase invoice is already fully settled.");
+
+            if (request.Amount > outstanding)
+            {
+                throw new InvalidOperationException(
+                    $"Payment amount ({request.Amount:0.00}) exceeds outstanding amount ({outstanding:0.00}) for purchase invoice {purchase.DocumentNumber}.");
+            }
+
+            referenceNumber = purchase.DocumentNumber;
+        }
+
         var documentNumber = await _documentNumberService.GenerateAsync(
             DocumentType.JournalEntry,
             cancellationToken);
@@ -80,7 +130,7 @@ public sealed class CreateSupplierPaymentCommandHandler
             request.TransactionDate,
             request.FiscalYearId,
             DocumentType.JournalEntry,
-            string.IsNullOrWhiteSpace(request.ReferenceNumber) ? documentNumber : request.ReferenceNumber,
+            string.IsNullOrWhiteSpace(referenceNumber) ? documentNumber : referenceNumber,
             request.Notes,
             request.CompanyId,
             request.BranchId);
@@ -114,7 +164,9 @@ public sealed class CreateSupplierPaymentCommandHandler
             Id = journalEntry.Id,
             DocumentNumber = journalEntry.DocumentNumber,
             Status = journalEntry.Status.ToString(),
-            Message = "Supplier payment posted successfully."
+            Message = request.PurchaseId.HasValue
+                ? "Supplier payment posted and linked to purchase invoice successfully."
+                : "Supplier payment posted successfully."
         };
     }
 }
