@@ -34,21 +34,17 @@ public sealed partial class FinancialReportingService
         // Do NOT remove reversed journal entries here.
         //
         // A reversal is itself a posted accounting transaction and therefore
-        // must participate in the report. This gives us the correct behavior
-        // for both cases:
+        // must participate in the report:
         //
-        //   Original + Reverse       => net zero
-        //   Original + Reverse +
-        //   Reverse-of-Reverse       => original effect restored
+        //   Original + Reverse                 => net zero
+        //   Original + Reverse + Reverse again => original effect restored
         //
         // Filtering IsReversed / OriginalJournalEntryId would hide these
         // transactions and can produce incorrect financial statements.
         //
-        // Date handling:
-        // When the caller supplies a date at midnight (for example
-        // 2026-08-15T00:00:00), treat it as the end of that calendar day.
-        // When a real time is supplied, use that exact timestamp as the
-        // exclusive upper boundary.
+        // When To is supplied at midnight (for example 2026-08-15T00:00:00),
+        // treat it as the end of that calendar day. When a real time is
+        // supplied, use that exact timestamp as the exclusive upper boundary.
         var toExclusive =
             to.TimeOfDay == TimeSpan.Zero
                 ? to.Date.AddDays(1)
@@ -77,7 +73,6 @@ public sealed partial class FinancialReportingService
                     .Where(x => x.Account.FinancialStatementNodeId == node.Id)
                     .Sum(x => GetIncomeStatementAmount(
                         x.Account.AccountType,
-                        x.Account.Nature,
                         x.Debit,
                         x.Credit))
             })
@@ -105,32 +100,18 @@ public sealed partial class FinancialReportingService
 
     private static decimal GetIncomeStatementAmount(
         AccountType accountType,
-        AccountNature nature,
         decimal debit,
         decimal credit)
     {
-        var balance = credit - debit;
-
-        // Financial statement presentation follows the account's normal
-        // balance. This is important for contra accounts such as Sales Returns
-        // which are Revenue accounts with Debit nature.
-        return nature switch
+        return accountType switch
         {
-            AccountNature.Credit =>
-                accountType switch
-                {
-                    AccountType.Revenue => balance,
-                    AccountType.Expense => -balance,
-                    _ => 0m
-                },
+            // Revenue increases by credit and decreases by debit.
+            // This naturally handles contra-revenue accounts such as
+            // Sales Returns because their return entries are debits.
+            AccountType.Revenue => credit - debit,
 
-            AccountNature.Debit =>
-                accountType switch
-                {
-                    AccountType.Expense => -balance,
-                    AccountType.Revenue => -balance,
-                    _ => 0m
-                },
+            // Expenses increase by debit and decrease by credit.
+            AccountType.Expense => debit - credit,
 
             _ => 0m
         };
