@@ -92,19 +92,42 @@ public static class ApplicationDbContextSeeder
 
         async Task ReplaceLinesAsync(PostingProfile profile, params PostingProfileLine[] lines)
         {
-            // ExecuteDeleteAsync removes existing rows directly in the database.
-            // Do NOT call ClearLines() afterwards because the deleted entities were
-            // not loaded into EF's change tracker. Calling ClearLines() here would
-            // mark the old rows as Deleted and SaveChangesAsync would attempt to
-            // delete them a second time, causing DbUpdateConcurrencyException.
+            // The previous implementation kept PostingProfile tracked while
+            // manipulating its backing-field collection. That made EF Core
+            // relationship fixup/change detection part of this synchronization
+            // and could result in a 0-row UPDATE/DELETE concurrency failure.
+            // Posting profile lines are seed data, so synchronize them directly
+            // through the DbSet instead.
+
+            // If this is a newly-created profile, persist the header first so its
+            // key definitely exists in the database before inserting its lines.
+            if (context.Entry(profile).State == EntityState.Added)
+                await context.SaveChangesAsync();
+
+            var profileId = profile.Id;
+
+            // Remove every existing line directly in SQL. Nothing is loaded into
+            // the change tracker and therefore no stale Deleted entities remain.
             await context.Set<PostingProfileLine>()
-                .Where(x => x.PostingProfileId == profile.Id)
+                .Where(x => x.PostingProfileId == profileId)
                 .ExecuteDeleteAsync();
 
-            foreach (var line in lines)
-                profile.AddLine(line);
+            // Detach everything from the previous seed operations. This is
+            // intentional: from this point this SaveChanges call should contain
+            // ONLY the new PostingProfileLine rows.
+            context.ChangeTracker.Clear();
 
-            // New profile header changes and new lines are persisted together.
+            foreach (var line in lines)
+            {
+                context.Set<PostingProfileLine>().Add(line);
+
+                // PostingProfileId has a private setter by design. EF's metadata
+                // API can set the mapped FK without weakening the domain model.
+                context.Entry(line)
+                    .Property(nameof(PostingProfileLine.PostingProfileId))
+                    .CurrentValue = profileId;
+            }
+
             await context.SaveChangesAsync();
         }
 
@@ -116,14 +139,8 @@ public static class ApplicationDbContextSeeder
                 profile = new PostingProfile(code, name, type, debit, credit, cashFlow);
                 context.PostingProfiles.Add(profile);
             }
-            else
-            {
-                // Existing posting profiles are intentionally left unchanged here.
-                // Updating a tracked profile during seeding was causing
-                // DbUpdateConcurrencyException when SaveChangesAsync ran.
-                // The posting lines are replaced below and are the only data this
-                // seeding step needs to synchronize.
-            }
+            // Existing profiles are deliberately not updated during seeding.
+            // The database row may already be referenced by posted documents.
             return profile;
         }
 
