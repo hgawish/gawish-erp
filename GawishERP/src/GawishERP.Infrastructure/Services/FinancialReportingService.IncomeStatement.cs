@@ -1,4 +1,5 @@
 using GawishERP.Application.Features.FinancialReporting.Dtos;
+using GawishERP.Domain.Common;
 using Microsoft.EntityFrameworkCore;
 
 namespace GawishERP.Infrastructure.Services;
@@ -29,26 +30,23 @@ public sealed partial class FinancialReportingService
             .OrderBy(x => x.SortOrder)
             .ToListAsync(cancellationToken);
 
-        // LedgerTransactions are immutable posting records. When a posted
-        // journal entry is reversed, both the original entry and its reversal
-        // remain in the ledger. For financial statements we must report the
-        // current business state, not both sides of a reversal pair.
+        // The source of truth for a financial statement is the posted
+        // journal-entry lines. AccountBalances/LedgerTransactions may be
+        // rebuilt asynchronously or may not contain historical data.
         //
-        // Therefore:
-        // 1. The original entry must not be IsReversed.
-        // 2. A reversal entry (OriginalJournalEntryId != null) must not be
-        //    included independently.
-        //
-        // This also prevents the historical "Reverse - Reverse" test data
-        // from changing the financial result when the report is rebuilt.
-        var transactions = await _context.LedgerTransactions
+        // Reversal handling:
+        // - Original posted entries are excluded when IsReversed = true.
+        // - Reversal entries are excluded when OriginalJournalEntryId != null.
+        // This makes the report reflect the current business state rather
+        // than counting both sides of a reversal pair.
+        var lines = await _context.JournalEntryLines
             .Include(x => x.Account)
             .Include(x => x.JournalEntryHeader)
             .AsNoTracking()
             .Where(x =>
-                x.FiscalYearId == fiscalYear.Id
-                && x.PostingDate >= from
-                && x.PostingDate <= to
+                x.JournalEntryHeader.FiscalYearId == fiscalYear.Id
+                && x.JournalEntryHeader.DocumentDate >= from
+                && x.JournalEntryHeader.DocumentDate <= to
                 && x.JournalEntryHeader.Status == DocumentStatus.Posted
                 && !x.JournalEntryHeader.IsReversed
                 && x.JournalEntryHeader.OriginalJournalEntryId == null
@@ -62,11 +60,10 @@ public sealed partial class FinancialReportingService
                 Code = node.Code,
                 Name = node.Name,
                 Level = node.Level,
-                Amount = transactions
+                Amount = lines
                     .Where(x => x.Account.FinancialStatementNodeId == node.Id)
                     .Sum(x => GetIncomeStatementAmount(
                         x.Account.AccountType,
-                        x.Account.Nature,
                         x.Debit,
                         x.Credit))
             })
@@ -93,22 +90,19 @@ public sealed partial class FinancialReportingService
     }
 
     private static decimal GetIncomeStatementAmount(
-        GawishERP.Domain.Common.AccountType accountType,
-        GawishERP.Domain.Common.AccountNature nature,
+        AccountType accountType,
         decimal debit,
         decimal credit)
     {
         return accountType switch
         {
-            // Revenue accounts increase with credits.
-            // Contra-revenue accounts such as Sales Returns increase with
-            // debits, so the same Credit - Debit expression reduces revenue.
-            GawishERP.Domain.Common.AccountType.Revenue
-                => credit - debit,
+            // Revenue increases with credit and decreases with debit.
+            // This also correctly handles contra-revenue accounts such as
+            // Sales Returns, which are posted as debits.
+            AccountType.Revenue => credit - debit,
 
-            // Expense accounts increase with debits.
-            GawishERP.Domain.Common.AccountType.Expense
-                => debit - credit,
+            // Expense accounts increase with debit and decrease with credit.
+            AccountType.Expense => debit - credit,
 
             _ => 0m
         };
