@@ -1,4 +1,4 @@
-﻿using BCrypt.Net;
+using BCrypt.Net;
 using GawishERP.Domain.Common;
 using GawishERP.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -116,7 +116,14 @@ public static class ApplicationDbContextSeeder
                 profile = new PostingProfile(code, name, type, debit, credit, cashFlow);
                 context.PostingProfiles.Add(profile);
             }
-            else profile.Update(name, debit, credit, cashFlow);
+            else
+            {
+                // Existing posting profiles are intentionally left unchanged here.
+                // Updating a tracked profile during seeding was causing
+                // DbUpdateConcurrencyException when SaveChangesAsync ran.
+                // The posting lines are replaced below and are the only data this
+                // seeding step needs to synchronize.
+            }
             return profile;
         }
 
