@@ -51,6 +51,11 @@ public sealed partial class FinancialReportingService
                 && x.Account.AccountType != AccountType.Expense)
             .ToListAsync(cancellationToken);
 
+        var accounts = await _context.Accounts
+            .AsNoTracking()
+            .Where(x => x.FinancialStatementNodeId != null)
+            .ToListAsync(cancellationToken);
+
         var nodeDtos = nodes
             .Select(node => new FinancialStatementNodeDto
             {
@@ -58,7 +63,8 @@ public sealed partial class FinancialReportingService
                 Code = node.Code,
                 Name = node.Name,
                 Level = node.Level,
-                Amount = accountsForNode(node.Id)
+                Amount = accounts
+                    .Where(account => account.FinancialStatementNodeId == node.Id)
                     .Sum(account =>
                     {
                         var opening = openingBalances
@@ -84,14 +90,6 @@ public sealed partial class FinancialReportingService
             TotalLiabilities = SumNode(nodeDtos, "BS-2"),
             TotalEquity = SumNode(nodeDtos, "BS-3")
         };
-
-        List<GawishERP.Domain.Entities.Account> accountsForNode(Guid nodeId)
-        {
-            return _context.Accounts
-                .AsNoTracking()
-                .Where(x => x.FinancialStatementNodeId == nodeId)
-                .ToList();
-        }
     }
 
     private static decimal GetBalanceSheetAmount(
