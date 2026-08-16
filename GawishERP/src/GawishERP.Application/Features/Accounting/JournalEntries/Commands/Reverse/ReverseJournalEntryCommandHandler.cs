@@ -1,4 +1,4 @@
-﻿using GawishERP.Application.Common.Interfaces;
+using GawishERP.Application.Common.Interfaces;
 using GawishERP.Application.Common.Results;
 using GawishERP.Domain.Common;
 using GawishERP.Domain.Interfaces;
@@ -56,6 +56,17 @@ public sealed class ReverseJournalEntryCommandHandler
                     ErrorType.Validation));
         }
 
+        // A reversal is an accounting consequence of an original business
+        // document. It must never become the source of another reversal.
+        if (original.OriginalJournalEntryId.HasValue)
+        {
+            return Result.Failure(
+                new Error(
+                    "JournalEntry.ReversalCannotBeReversed",
+                    "A reversal journal entry cannot be reversed again. Reverse the original business document instead.",
+                    ErrorType.Validation));
+        }
+
         if (original.IsReversed)
         {
             return Result.Failure(
@@ -91,13 +102,12 @@ public sealed class ReverseJournalEntryCommandHandler
             await _documentNumberService.GenerateAsync(
                 DocumentType.JournalEntry,
                 cancellationToken);
+
         var reverseEntry =
-    original.CreateReverseEntry(documentNumber);
+            original.CreateReverseEntry(documentNumber);
 
         reverseEntry.Submit();
-
         reverseEntry.Approve();
-
         reverseEntry.Post();
 
         _journalEntryRepository.Add(reverseEntry);
