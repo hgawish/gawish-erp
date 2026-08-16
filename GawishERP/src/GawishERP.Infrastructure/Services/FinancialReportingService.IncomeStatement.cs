@@ -29,13 +29,29 @@ public sealed partial class FinancialReportingService
             .OrderBy(x => x.SortOrder)
             .ToListAsync(cancellationToken);
 
+        // LedgerTransactions are immutable posting records. When a posted
+        // journal entry is reversed, both the original entry and its reversal
+        // remain in the ledger. For financial statements we must report the
+        // current business state, not both sides of a reversal pair.
+        //
+        // Therefore:
+        // 1. The original entry must not be IsReversed.
+        // 2. A reversal entry (OriginalJournalEntryId != null) must not be
+        //    included independently.
+        //
+        // This also prevents the historical "Reverse - Reverse" test data
+        // from changing the financial result when the report is rebuilt.
         var transactions = await _context.LedgerTransactions
             .Include(x => x.Account)
+            .Include(x => x.JournalEntryHeader)
             .AsNoTracking()
             .Where(x =>
                 x.FiscalYearId == fiscalYear.Id
                 && x.PostingDate >= from
                 && x.PostingDate <= to
+                && x.JournalEntryHeader.Status == DocumentStatus.Posted
+                && !x.JournalEntryHeader.IsReversed
+                && x.JournalEntryHeader.OriginalJournalEntryId == null
                 && x.Account.FinancialStatementNodeId != null)
             .ToListAsync(cancellationToken);
 
@@ -84,12 +100,9 @@ public sealed partial class FinancialReportingService
     {
         return accountType switch
         {
-            // Revenue accounts always contribute according to the
-            // financial-statement effect of their normal balance.
-            // Regular revenue (Credit nature): Credit - Debit.
-            // Contra-revenue such as Sales Returns (Debit nature):
-            // its debit balance must reduce revenue, so the same
-            // Credit - Debit expression correctly produces a negative amount.
+            // Revenue accounts increase with credits.
+            // Contra-revenue accounts such as Sales Returns increase with
+            // debits, so the same Credit - Debit expression reduces revenue.
             GawishERP.Domain.Common.AccountType.Revenue
                 => credit - debit,
 
