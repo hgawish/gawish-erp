@@ -161,10 +161,10 @@ public static class ApplicationDbContextSeeder
     // ======================================================
     // Posting Profiles
     // ======================================================
-    // IMPORTANT:
-    // System posting profiles are resolved by Account.Code, never by
-    // hard-coded database GUIDs. This keeps the seed portable across
-    // databases and prevents broken profiles after a database recreation.
+    // System posting profiles are resolved by Account.Code.
+    // Posting profile lines are replaced using ExecuteDeleteAsync
+    // so stale/missing tracked child rows cannot produce an optimistic
+    // concurrency exception during database seeding.
     // ======================================================
 
     private static async Task SeedPostingProfilesAsync(ApplicationDbContext context)
@@ -199,31 +199,23 @@ public static class ApplicationDbContextSeeder
         var salesReturnsAccountId = await ResolveAccountIdAsync("4200", "Sales Returns");
         var costOfSalesAccountId = await ResolveAccountIdAsync("5100", "Cost Of Sales");
 
-        // Replace existing profile lines in separate database operations.
-        // This avoids EF Core trying to delete old child rows and insert
-        // replacement rows in the same SaveChanges batch, which can cause
-        // DbUpdateConcurrencyException when the seeded database already
-        // contains legacy/stale PostingProfileLine rows.
         async Task ReplaceLinesAsync(
             PostingProfile profile,
             params PostingProfileLine[] lines)
         {
-            var profileEntry = context.Entry(profile);
+            // First persist the profile itself when it is new, or persist any
+            // header updates before touching its child rows.
+            await context.SaveChangesAsync();
 
-            if (profileEntry.State != EntityState.Added)
-            {
-                var existingLines = await context.Entry(profile)
-                    .Collection(x => x.Lines)
-                    .Query()
-                    .ToListAsync();
+            // ExecuteDeleteAsync operates directly against SQL Server and does
+            // not depend on EF's tracked entity state. Therefore an old/stale
+            // PostingProfileLine can no longer cause DbUpdateConcurrencyException.
+            await context.Set<PostingProfileLine>()
+                .Where(x => x.PostingProfileId == profile.Id)
+                .ExecuteDeleteAsync();
 
-                foreach (var existingLine in existingLines)
-                    context.Entry(existingLine).State = EntityState.Deleted;
-
-                if (existingLines.Count > 0)
-                    await context.SaveChangesAsync();
-            }
-
+            // The profile was not loaded with Lines, so its backing collection
+            // contains no deleted database rows here. Rebuild it normally.
             profile.ClearLines();
 
             foreach (var line in lines)
