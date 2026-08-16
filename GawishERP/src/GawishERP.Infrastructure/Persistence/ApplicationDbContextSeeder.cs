@@ -92,46 +92,20 @@ public static class ApplicationDbContextSeeder
 
         async Task ReplaceLinesAsync(PostingProfile profile, params PostingProfileLine[] lines)
         {
-            // Do NOT call SaveChanges before this delete. BaseEntity generates
-            // profile.Id client-side, so new child rows can reference it safely.
-            // Existing profile header changes and new lines are persisted together.
+            // ExecuteDeleteAsync removes existing rows directly in the database.
+            // Do NOT call ClearLines() afterwards because the deleted entities were
+            // not loaded into EF's change tracker. Calling ClearLines() here would
+            // mark the old rows as Deleted and SaveChangesAsync would attempt to
+            // delete them a second time, causing DbUpdateConcurrencyException.
             await context.Set<PostingProfileLine>()
                 .Where(x => x.PostingProfileId == profile.Id)
                 .ExecuteDeleteAsync();
 
-            // Lines were intentionally not loaded, so the in-memory collection
-            // does not contain rows deleted by ExecuteDeleteAsync.
-            profile.ClearLines();
-            foreach (var line in lines) profile.AddLine(line);
-            try
-            {
-                await context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                Console.WriteLine("========== POSTING PROFILE CONCURRENCY ==========");
+            foreach (var line in lines)
+                profile.AddLine(line);
 
-                foreach (var entry in ex.Entries)
-                {
-                    Console.WriteLine($"Entity: {entry.Metadata.ClrType.Name}");
-                    Console.WriteLine($"State : {entry.State}");
-
-                    var key = entry.Metadata.FindPrimaryKey();
-
-                    if (key != null)
-                    {
-                        foreach (var property in key.Properties)
-                        {
-                            Console.WriteLine(
-                                $"Key {property.Name}: {entry.Property(property.Name).CurrentValue}");
-                        }
-                    }
-
-                    Console.WriteLine("------------------------------------------------");
-                }
-
-                throw;
-            }
+            // New profile header changes and new lines are persisted together.
+            await context.SaveChangesAsync();
         }
 
         async Task<PostingProfile> GetOrCreateAsync(string code, string name, DocumentType type, Guid debit, Guid credit, CashFlowCategory cashFlow)
