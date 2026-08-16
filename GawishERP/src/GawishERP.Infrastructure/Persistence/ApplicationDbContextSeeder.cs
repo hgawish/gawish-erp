@@ -183,7 +183,7 @@ public static class ApplicationDbContextSeeder
                     $"Required system account '{code} - {name}' was not found.");
             }
 
-            if (!account.AllowPosting)
+            if (!account.IsPostingAccount)
             {
                 throw new InvalidOperationException(
                     $"Required system account '{code} - {name}' does not allow posting.");
