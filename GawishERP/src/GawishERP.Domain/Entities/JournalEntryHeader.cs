@@ -1,4 +1,4 @@
-﻿using GawishERP.Domain.Common;
+using GawishERP.Domain.Common;
 
 namespace GawishERP.Domain.Entities;
 
@@ -24,10 +24,6 @@ public class JournalEntryHeader : BaseDocumentEntity
     public Guid? ReversedByJournalEntryId { get; private set; }
 
     public bool IsReversed { get; private set; }
-
-    //========================
-    // Navigation
-    //========================
 
     public JournalEntryHeader? OriginalJournalEntry { get; private set; }
 
@@ -57,21 +53,13 @@ public class JournalEntryHeader : BaseDocumentEntity
             throw new ArgumentException(nameof(fiscalYearId));
 
         DocumentNumber = documentNumber;
-
         DocumentDate = documentDate;
-
         FiscalYearId = fiscalYearId;
-
         CompanyId = companyId;
-
         BranchId = branchId;
-
         DocumentType = documentType;
-
         ReferenceNumber = referenceNumber;
-
         Notes = notes;
-
         Status = DocumentStatus.Draft;
     }
 
@@ -92,7 +80,6 @@ public class JournalEntryHeader : BaseDocumentEntity
             description);
 
         _lines.Add(line);
-
         Recalculate();
     }
 
@@ -108,14 +95,12 @@ public class JournalEntryHeader : BaseDocumentEntity
             return;
 
         _lines.Remove(line);
-
         Recalculate();
     }
 
     private void Recalculate()
     {
         TotalDebit = _lines.Sum(x => x.Debit);
-
         TotalCredit = _lines.Sum(x => x.Credit);
     }
 
@@ -167,17 +152,14 @@ public class JournalEntryHeader : BaseDocumentEntity
         base.Cancel();
     }
 
-    /// <summary>
-    /// يربط القيد الجديد بالقيد الأصلى
-    /// </summary>
     public void MarkAsReverseOf(Guid originalJournalEntryId)
     {
+        if (originalJournalEntryId == Guid.Empty)
+            throw new ArgumentException(nameof(originalJournalEntryId));
+
         OriginalJournalEntryId = originalJournalEntryId;
     }
 
-    /// <summary>
-    /// تعليم القيد بأنه تم عمل Reverse له
-    /// </summary>
     public void MarkAsReversed(Guid reverseJournalEntryId)
     {
         if (Status != DocumentStatus.Posted)
@@ -188,13 +170,16 @@ public class JournalEntryHeader : BaseDocumentEntity
             throw new InvalidOperationException(
                 "Journal entry has already been reversed.");
 
-        IsReversed = true;
+        if (reverseJournalEntryId == Guid.Empty)
+            throw new ArgumentException(nameof(reverseJournalEntryId));
 
+        IsReversed = true;
         ReversedByJournalEntryId = reverseJournalEntryId;
     }
 
     /// <summary>
-    /// إنشاء القيد العكسى
+    /// Creates a reversal for an original posted journal entry.
+    /// Reversal journal entries themselves cannot be reversed again.
     /// </summary>
     public JournalEntryHeader CreateReverseEntry(
         string documentNumber)
@@ -202,6 +187,10 @@ public class JournalEntryHeader : BaseDocumentEntity
         if (Status != DocumentStatus.Posted)
             throw new InvalidOperationException(
                 "Only posted journal entries can be reversed.");
+
+        if (OriginalJournalEntryId.HasValue)
+            throw new InvalidOperationException(
+                "A reversal journal entry cannot be reversed again. Reverse the original business document instead.");
 
         if (IsReversed)
             throw new InvalidOperationException(
