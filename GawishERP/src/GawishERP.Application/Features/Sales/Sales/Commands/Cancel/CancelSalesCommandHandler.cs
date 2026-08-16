@@ -48,7 +48,6 @@ public sealed class CancelSalesCommandHandler
             throw new InvalidOperationException(
                 "Sales document not found.");
 
-        // A cancelled document must never be processed again.
         if (sales.Status == DocumentStatus.Cancelled)
             throw new InvalidOperationException(
                 "Sales document already cancelled.");
@@ -57,9 +56,6 @@ public sealed class CancelSalesCommandHandler
             throw new InvalidOperationException(
                 "Only posted sales can be cancelled.");
 
-        // A posted Sales Return already puts the returned quantity back into
-        // inventory and creates its accounting effect. Cancelling the original
-        // sale after that would reverse the sale again and corrupt stock/GL.
         var hasPostedSalesReturn = _salesReturnRepository
             .GetQueryable()
             .Any(x =>
@@ -70,22 +66,18 @@ public sealed class CancelSalesCommandHandler
             throw new InvalidOperationException(
                 $"Sales document {sales.DocumentNumber} cannot be cancelled because it has a posted Sales Return.");
 
-        // Find the original posted Sales journal before changing the document.
-        // A journal that has already been reversed cannot be reversed again.
-        var journalEntry = _journalEntryRepository
-            .GetQueryable()
-            .FirstOrDefault(x =>
-                x.DocumentType == DocumentType.Sales &&
-                x.ReferenceNumber == sales.DocumentNumber &&
-                x.Status == DocumentStatus.Posted &&
-                !x.IsReversed);
+        // Resolve only the original Sales journal. The repository method
+        // excludes reversal journals by requiring OriginalJournalEntryId == null.
+        var journalEntry =
+            await _journalEntryRepository.GetPostedByReferenceNumberAsync(
+                sales.DocumentNumber,
+                DocumentType.Sales,
+                cancellationToken);
 
         if (journalEntry is null)
             throw new InvalidOperationException(
                 $"Posted Sales journal entry not found for {sales.DocumentNumber}, or it has already been reversed.");
 
-        // Find the original Sale stock transactions. Cancellation must use the
-        // historical inventory cost, never the sales UnitPrice.
         var originalSaleTransactions =
             await _stockTransactionRepository.GetByReferenceAsync(
                 sales.Id,
@@ -129,8 +121,6 @@ public sealed class CancelSalesCommandHandler
             }
         }
 
-        // Reverse the original Sales journal. The reverse workflow creates and
-        // posts the opposite journal and marks the original journal as reversed.
         var reverseResult = await _mediator.Send(
             new ReverseJournalEntryCommand(journalEntry.Id),
             cancellationToken);
