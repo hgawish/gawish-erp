@@ -192,7 +192,6 @@ public static class ApplicationDbContextSeeder
             return account.Id;
         }
 
-        // Current chart of accounts used by GawishERP.
         var inventoryAccountId = await ResolveAccountIdAsync("1140", "Inventory");
         var customerAccountId = await ResolveAccountIdAsync("1130", "Customers");
         var supplierAccountId = await ResolveAccountIdAsync("2110", "Suppliers");
@@ -200,14 +199,37 @@ public static class ApplicationDbContextSeeder
         var salesReturnsAccountId = await ResolveAccountIdAsync("4200", "Sales Returns");
         var costOfSalesAccountId = await ResolveAccountIdAsync("5100", "Cost Of Sales");
 
-        static void ResetLines(
+        // Replace existing profile lines in separate database operations.
+        // This avoids EF Core trying to delete old child rows and insert
+        // replacement rows in the same SaveChanges batch, which can cause
+        // DbUpdateConcurrencyException when the seeded database already
+        // contains legacy/stale PostingProfileLine rows.
+        async Task ReplaceLinesAsync(
             PostingProfile profile,
             params PostingProfileLine[] lines)
         {
+            var profileEntry = context.Entry(profile);
+
+            if (profileEntry.State != EntityState.Added)
+            {
+                var existingLines = await context.Entry(profile)
+                    .Collection(x => x.Lines)
+                    .Query()
+                    .ToListAsync();
+
+                foreach (var existingLine in existingLines)
+                    context.Entry(existingLine).State = EntityState.Deleted;
+
+                if (existingLines.Count > 0)
+                    await context.SaveChangesAsync();
+            }
+
             profile.ClearLines();
 
             foreach (var line in lines)
                 profile.AddLine(line);
+
+            await context.SaveChangesAsync();
         }
 
         // ==================================================
@@ -215,7 +237,6 @@ public static class ApplicationDbContextSeeder
         // Dr Inventory / Cr Suppliers
         // ==================================================
         var purchaseProfile = await context.PostingProfiles
-            .Include(x => x.Lines)
             .SingleOrDefaultAsync(x =>
                 x.Code == "PURCHASE_DEFAULT" &&
                 x.DocumentType == DocumentType.Purchase);
@@ -241,7 +262,7 @@ public static class ApplicationDbContextSeeder
                 CashFlowCategory.None);
         }
 
-        ResetLines(
+        await ReplaceLinesAsync(
             purchaseProfile,
             new PostingProfileLine(
                 1, PostingEntryType.Debit, inventoryAccountId,
@@ -255,7 +276,6 @@ public static class ApplicationDbContextSeeder
         // Dr Suppliers / Cr Inventory
         // ==================================================
         var purchaseReturnProfile = await context.PostingProfiles
-            .Include(x => x.Lines)
             .SingleOrDefaultAsync(x =>
                 x.Code == "PURCHASE_RETURN_DEFAULT" &&
                 x.DocumentType == DocumentType.PurchaseReturn);
@@ -281,7 +301,7 @@ public static class ApplicationDbContextSeeder
                 CashFlowCategory.None);
         }
 
-        ResetLines(
+        await ReplaceLinesAsync(
             purchaseReturnProfile,
             new PostingProfileLine(
                 1, PostingEntryType.Debit, supplierAccountId,
@@ -296,7 +316,6 @@ public static class ApplicationDbContextSeeder
         // Dr Cost Of Sales / Cr Inventory
         // ==================================================
         var salesProfile = await context.PostingProfiles
-            .Include(x => x.Lines)
             .SingleOrDefaultAsync(x =>
                 x.Code == "SALES_DEFAULT" &&
                 x.DocumentType == DocumentType.Sales);
@@ -322,7 +341,7 @@ public static class ApplicationDbContextSeeder
                 CashFlowCategory.None);
         }
 
-        ResetLines(
+        await ReplaceLinesAsync(
             salesProfile,
             new PostingProfileLine(
                 1, PostingEntryType.Debit, customerAccountId,
@@ -343,7 +362,6 @@ public static class ApplicationDbContextSeeder
         // Dr Inventory / Cr Cost Of Sales
         // ==================================================
         var salesReturnProfile = await context.PostingProfiles
-            .Include(x => x.Lines)
             .SingleOrDefaultAsync(x =>
                 x.Code == "SALES_RETURN_DEFAULT" &&
                 x.DocumentType == DocumentType.SalesReturn);
@@ -369,7 +387,7 @@ public static class ApplicationDbContextSeeder
                 CashFlowCategory.None);
         }
 
-        ResetLines(
+        await ReplaceLinesAsync(
             salesReturnProfile,
             new PostingProfileLine(
                 1, PostingEntryType.Debit, salesReturnsAccountId,
@@ -383,8 +401,6 @@ public static class ApplicationDbContextSeeder
             new PostingProfileLine(
                 4, PostingEntryType.Credit, costOfSalesAccountId,
                 PostingAmountSource.Cost, 100m, "Sales Return - COGS"));
-
-        await context.SaveChangesAsync();
 
         Console.WriteLine("Posting Profiles seeded successfully.");
     }
