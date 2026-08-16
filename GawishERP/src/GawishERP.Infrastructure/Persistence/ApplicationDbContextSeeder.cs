@@ -92,17 +92,19 @@ public static class ApplicationDbContextSeeder
 
         async Task ReplaceLinesAsync(PostingProfile profile, params PostingProfileLine[] lines)
         {
-            // Do NOT call SaveChanges before this delete. BaseEntity generates
-            // profile.Id client-side, so new child rows can reference it safely.
-            // Existing profile header changes and new lines are persisted together.
+            // ExecuteDeleteAsync removes existing rows directly in the database.
+            // Do NOT call ClearLines() afterwards because the deleted entities were
+            // not loaded into EF's change tracker. Calling ClearLines() here would
+            // mark the old rows as Deleted and SaveChangesAsync would attempt to
+            // delete them a second time, causing DbUpdateConcurrencyException.
             await context.Set<PostingProfileLine>()
                 .Where(x => x.PostingProfileId == profile.Id)
                 .ExecuteDeleteAsync();
 
-            // Lines were intentionally not loaded, so the in-memory collection
-            // does not contain rows deleted by ExecuteDeleteAsync.
-            profile.ClearLines();
-            foreach (var line in lines) profile.AddLine(line);
+            foreach (var line in lines)
+                profile.AddLine(line);
+
+            // New profile header changes and new lines are persisted together.
             await context.SaveChangesAsync();
         }
 
