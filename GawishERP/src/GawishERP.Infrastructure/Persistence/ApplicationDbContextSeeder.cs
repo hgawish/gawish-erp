@@ -103,7 +103,35 @@ public static class ApplicationDbContextSeeder
             // does not contain rows deleted by ExecuteDeleteAsync.
             profile.ClearLines();
             foreach (var line in lines) profile.AddLine(line);
-            await context.SaveChangesAsync();
+            try
+            {
+                await context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                Console.WriteLine("========== POSTING PROFILE CONCURRENCY ==========");
+
+                foreach (var entry in ex.Entries)
+                {
+                    Console.WriteLine($"Entity: {entry.Metadata.ClrType.Name}");
+                    Console.WriteLine($"State : {entry.State}");
+
+                    var key = entry.Metadata.FindPrimaryKey();
+
+                    if (key != null)
+                    {
+                        foreach (var property in key.Properties)
+                        {
+                            Console.WriteLine(
+                                $"Key {property.Name}: {entry.Property(property.Name).CurrentValue}");
+                        }
+                    }
+
+                    Console.WriteLine("------------------------------------------------");
+                }
+
+                throw;
+            }
         }
 
         async Task<PostingProfile> GetOrCreateAsync(string code, string name, DocumentType type, Guid debit, Guid credit, CashFlowCategory cashFlow)

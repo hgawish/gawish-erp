@@ -12,6 +12,9 @@ public enum PostingAmountSource
 
     Cost = 5,
 
+    // Alias for Cost when the amount represents Cost of Goods Sold
+    CostOfGoodsSold = Cost,
+
     Quantity = 6,
 
     Custom = 100
