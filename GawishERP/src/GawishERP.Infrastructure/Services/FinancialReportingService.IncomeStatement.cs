@@ -35,11 +35,11 @@ public sealed partial class FinancialReportingService
             })
             .ToList();
 
-        var revenue = SumNode(nodeDtos, "4");
+        var revenue = SumNode(nodeDtos, "IS-4");
 
-        var costOfSales = SumNode(nodeDtos, "5");
+        var costOfSales = SumNode(nodeDtos, "IS-5");
 
-        var operatingExpenses = SumNode(nodeDtos, "6");
+        var operatingExpenses = SumNode(nodeDtos, "IS-6");
 
         return new IncomeStatementDto
         {
