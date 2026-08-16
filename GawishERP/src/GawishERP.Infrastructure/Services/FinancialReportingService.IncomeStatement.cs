@@ -30,15 +30,30 @@ public sealed partial class FinancialReportingService
             .OrderBy(x => x.SortOrder)
             .ToListAsync(cancellationToken);
 
-        // The source of truth for a financial statement is the posted
-        // journal-entry lines. AccountBalances/LedgerTransactions may be
-        // rebuilt asynchronously or may not contain historical data.
+        // The journal is the accounting source of truth for financial reports.
+        // Do NOT remove reversed journal entries here.
         //
-        // Reversal handling:
-        // - Original posted entries are excluded when IsReversed = true.
-        // - Reversal entries are excluded when OriginalJournalEntryId != null.
-        // This makes the report reflect the current business state rather
-        // than counting both sides of a reversal pair.
+        // A reversal is itself a posted accounting transaction and therefore
+        // must participate in the report. This gives us the correct behavior
+        // for both cases:
+        //
+        //   Original + Reverse       => net zero
+        //   Original + Reverse +
+        //   Reverse-of-Reverse       => original effect restored
+        //
+        // Filtering IsReversed / OriginalJournalEntryId would hide these
+        // transactions and can produce incorrect financial statements.
+        //
+        // Date handling:
+        // When the caller supplies a date at midnight (for example
+        // 2026-08-15T00:00:00), treat it as the end of that calendar day.
+        // When a real time is supplied, use that exact timestamp as the
+        // exclusive upper boundary.
+        var toExclusive =
+            to.TimeOfDay == TimeSpan.Zero
+                ? to.Date.AddDays(1)
+                : to;
+
         var lines = await _context.JournalEntryLines
             .Include(x => x.Account)
             .Include(x => x.JournalEntryHeader)
@@ -46,10 +61,8 @@ public sealed partial class FinancialReportingService
             .Where(x =>
                 x.JournalEntryHeader.FiscalYearId == fiscalYear.Id
                 && x.JournalEntryHeader.DocumentDate >= from
-                && x.JournalEntryHeader.DocumentDate <= to
+                && x.JournalEntryHeader.DocumentDate < toExclusive
                 && x.JournalEntryHeader.Status == DocumentStatus.Posted
-                && !x.JournalEntryHeader.IsReversed
-                && x.JournalEntryHeader.OriginalJournalEntryId == null
                 && x.Account.FinancialStatementNodeId != null)
             .ToListAsync(cancellationToken);
 
@@ -64,6 +77,7 @@ public sealed partial class FinancialReportingService
                     .Where(x => x.Account.FinancialStatementNodeId == node.Id)
                     .Sum(x => GetIncomeStatementAmount(
                         x.Account.AccountType,
+                        x.Account.Nature,
                         x.Debit,
                         x.Credit))
             })
@@ -91,18 +105,32 @@ public sealed partial class FinancialReportingService
 
     private static decimal GetIncomeStatementAmount(
         AccountType accountType,
+        AccountNature nature,
         decimal debit,
         decimal credit)
     {
-        return accountType switch
-        {
-            // Revenue increases with credit and decreases with debit.
-            // This also correctly handles contra-revenue accounts such as
-            // Sales Returns, which are posted as debits.
-            AccountType.Revenue => credit - debit,
+        var balance = credit - debit;
 
-            // Expense accounts increase with debit and decrease with credit.
-            AccountType.Expense => debit - credit,
+        // Financial statement presentation follows the account's normal
+        // balance. This is important for contra accounts such as Sales Returns
+        // which are Revenue accounts with Debit nature.
+        return nature switch
+        {
+            AccountNature.Credit =>
+                accountType switch
+                {
+                    AccountType.Revenue => balance,
+                    AccountType.Expense => -balance,
+                    _ => 0m
+                },
+
+            AccountNature.Debit =>
+                accountType switch
+                {
+                    AccountType.Expense => -balance,
+                    AccountType.Revenue => -balance,
+                    _ => 0m
+                },
 
             _ => 0m
         };
