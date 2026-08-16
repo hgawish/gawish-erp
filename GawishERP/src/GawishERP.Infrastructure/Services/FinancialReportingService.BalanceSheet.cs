@@ -40,11 +40,11 @@ public sealed partial class FinancialReportingService
 
             Nodes = nodeDtos,
 
-            TotalAssets = SumNode(nodeDtos, "1"),
+            TotalAssets = SumNode(nodeDtos, "BS-1"),
 
-            TotalLiabilities = SumNode(nodeDtos, "2"),
+            TotalLiabilities = SumNode(nodeDtos, "BS-2"),
 
-            TotalEquity = SumNode(nodeDtos, "3")
+            TotalEquity = SumNode(nodeDtos, "BS-3")
         };
     }
 }
