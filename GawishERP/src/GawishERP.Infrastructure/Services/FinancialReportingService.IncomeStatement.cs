@@ -1,4 +1,5 @@
 using GawishERP.Application.Features.FinancialReporting.Dtos;
+using GawishERP.Domain.Common;
 using Microsoft.EntityFrameworkCore;
 
 namespace GawishERP.Infrastructure.Services;
