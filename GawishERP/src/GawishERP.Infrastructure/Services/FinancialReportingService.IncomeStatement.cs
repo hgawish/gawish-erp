@@ -84,13 +84,16 @@ public sealed partial class FinancialReportingService
     {
         return accountType switch
         {
+            // Revenue accounts always contribute according to the
+            // financial-statement effect of their normal balance.
+            // Regular revenue (Credit nature): Credit - Debit.
+            // Contra-revenue such as Sales Returns (Debit nature):
+            // its debit balance must reduce revenue, so the same
+            // Credit - Debit expression correctly produces a negative amount.
             GawishERP.Domain.Common.AccountType.Revenue
-                when nature == GawishERP.Domain.Common.AccountNature.Credit
-                    => credit - debit,
+                => credit - debit,
 
-            GawishERP.Domain.Common.AccountType.Revenue
-                => debit - credit,
-
+            // Expense accounts increase with debits.
             GawishERP.Domain.Common.AccountType.Expense
                 => debit - credit,
 
